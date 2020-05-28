@@ -2,7 +2,7 @@ import pyro
 import pyro.distributions as dist
 import numpy as np
 import torch
-from models.Model import Model
+from anneal.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
@@ -21,13 +21,14 @@ import torch.nn.functional as F
 class MixtureGaussianDMP(Model):
 
     params = {'T' : 6, 'cnv_mean' : 2, 'cnv_var' :0.6, 'theta_scale' : 3, 'theta_rate' : 1, 'batch_size' : None,
-            'mixture' : None}
+            'mixture' : None, 'alpha' : 0.01}
     data_name = set(['data', 'mu','pld', 'segments'])
 
 
     def __init__(self, data_dict):
         self.params['mixture'] = 1 / torch.ones(self.params['T'])
         self._params = self.params
+        self._data = None
         super().__init__(data_dict, self.data_name)
 
     def mix_weights(self,beta):
@@ -36,24 +37,59 @@ class MixtureGaussianDMP(Model):
 
     def model(self,*args, **kwargs):
         I, N = self._data['data'].shape
-        T =  self._params['K']
-        with pyro.plate("beta_plate", T - 1):
-            beta = pyro.sample("mixture_weights", dist.Beta(1, 0.0001))
+        batch = N if self._params['batch_size'] else self._params['batch_size']
+
+        with pyro.plate("beta_plate", self._params['T'] - 1):
+            beta = pyro.sample("mixture_weights", dist.Beta(1, self._params['alpha']))
 
         with pyro.plate('segments', I):
-            with pyro.plate('components', self._params['K']):
-                cc = pyro.sample('cnv_probs', dist.LogNormal(np.log(self._params['pld']), self._params['cnv_var']))
+            with pyro.plate('components', self._params['T']):
+                cc = pyro.sample('cnv_probs', dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_var']))
 
-        with pyro.plate('data', N, self._params['batch_size']):
-            assignment = pyro.sample('assignment', dist.Categorical(self.mix_weights(beta)), infer={"enumerate": "parallel"})
+        with pyro.plate('data2', N, batch):
             theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
+
+        with pyro.plate('data', N, batch):
+            assignment = pyro.sample('assignment', dist.Categorical(self.mix_weights(beta)), infer={"enumerate": "parallel"})
             for i in pyro.plate('segments2', I):
                 pyro.sample('obs_{}'.format(i), dist.Poisson((Vindex(cc)[assignment,i] * theta * self._data['mu'][i]
                                                               )
-                                                             + 1e-8), obs=self.params['data'][i, :])
+                                                             + 1e-8), obs=self._data['data'][i, :])
 
-    def guide(self,*args, **kwargs):
-        return AutoDelta(poutine.block(self.model, expose=['mixture_weights', 'norm_factor', 'cnv_probs']), init_loc_fn=self.init_fn())
+    def guide(self,MAP = False,*args, **kwargs):
+        if (MAP):
+            return AutoDelta(poutine.block(self.model, expose=['mixture_weights', 'norm_factor', 'cnv_probs']),
+                             init_loc_fn=self.init_fn())
+        else:
+            def guide_ret(*args, **kwargs):
+                I, N = self._data['data'].shape
+                batch = N if self._params['batch_size'] else self._params['batch_size']
+
+                kappa = pyro.param('param_kappa', lambda: dist.Uniform(0, 1).sample([self._params['T'] - 1]), constraint=constraints.positive)
+                cnv_mean = pyro.param("param_cnv_mean", lambda: self.create_gaussian_init_values(),
+                                      constraint=constraints.positive)
+                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_var'],
+                                     constraint=constraints.positive)
+                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(
+                    self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0], 1)), axis=0) * 3,
+                                         constraint=constraints.positive)
+                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * 3,
+                                        constraint=constraints.positive)
+
+                with pyro.plate("beta_plate", self._params['T'] - 1):
+                    pyro.sample("mixture_weights", dist.Beta(1, kappa))
+
+                with pyro.plate('segments', I):
+                    with pyro.plate('components', self._params['T']):
+                        pyro.sample('cnv_probs', dist.LogNormal(torch.log(cnv_mean), cnv_var))
+
+                with pyro.plate("data2", N, batch):
+                    pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
+
+                with pyro.plate('data', N, self._params['batch_size']):
+                    pyro.sample('assignment', dist.Categorical(kappa), infer={"enumerate": "parallel"})
+
+            return guide_ret
 
     def create_gaussian_init_values(self):
         init = torch.zeros(self._params['T'], self._data['segments'])
@@ -65,28 +101,19 @@ class MixtureGaussianDMP(Model):
                     init[k, i] = torch.floor(self._data['pld'][i])
         return init
 
-    def final_guide(self, MAPs):
-        def full_guide(self, *args, **kargs):
-            I, N = self.params['data'].shape
-            with poutine.block(hide=["cnv_probs", "norm_factor", "mixture_weights"]):
-                pyro.sample('mixture_weights',
-                                      dist.Dirichlet(MAPs['mixture_weights'].detach()))
-                with pyro.plate('segments', I):
-                    with pyro.plate('components', self.params['K']):
-                         pyro.sample("cnv_probs", dist.Delta(
-                            MAPs['cnv_probs'].detach()))
+    def full_guide(self, MAP = False , *args, **kwargs):
+        def full_guide_ret(*args, **kargs):
+            I, N = self._data['data'].shape
+            batch = N if self._params['batch_size'] else self._params['batch_size']
 
-                with pyro.plate('data', N, self.params['batch_size']):
-                    assignment_probs = pyro.param('assignment_probs',
-                                                  torch.ones(N, self.params['K']) / self.params['K']
-                                                  , constraint=constraints.unit_interval)
-                    pyro.sample('assignment', dist.Categorical(assignment_probs),
-                                             infer={"enumerate": "parallel"})
-                    pyro.sample('norm_factor',
-                                dist.Delta(MAPs['norm_factor'].detach()))
+            with poutine.block(hide_types=["param"]):  # Keep our learned values of global parameters.
+                self.guide(MAP)()
+            with pyro.plate('data', N, batch):
+                assignment_probs = pyro.param('assignment_probs', torch.ones(N, self._params['T']) / self._params['T'],
+                                              constraint=constraints.unit_interval)
+                pyro.sample('assignment', dist.Categorical(assignment_probs), infer={"enumerate": "parallel"})
 
-
-        return full_guide
+        return full_guide_ret
 
 
 
@@ -95,30 +122,8 @@ class MixtureGaussianDMP(Model):
             if site["name"] == "cnv_probs":
                 return self.create_gaussian_init_values()
             if site["name"] == "mixture_weights":
-                return dist.Beta(1, 0.8).mean.repeat((self.params['K']-1))
+                return dist.Uniform(0, 1).sample([self._params['T'] - 1])
             if site["name"] == "norm_factor":
-                return torch.mean(self.params['data'] / (2 * self.params['mu']), axis=0)
+                return torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
             raise ValueError(site["name"])
         return init_function
-
-    def write_results(self, MAPs, prefix, trace=None, cell_ass = None):
-
-        assert trace is not None or cell_ass is not None
-        if cell_ass is not None:
-            cell_assig = cell_ass
-        else:
-            cell_assig = trace.nodes["assignment"]["value"]
-
-        np.savetxt(prefix + "cell_assignmnts.txt", cell_assig.numpy(), delimiter="\t")
-
-        for i in MAPs:
-            if i == "cnv_probs":
-                np.savetxt(prefix + i + ".txt", MAPs[i].detach().numpy(), delimiter="\t")
-            else:
-                if i == "mixture_weights":
-                    np.savetxt(prefix + i + ".txt", MAPs[i].detach().numpy(), delimiter="\t")
-                else:
-                    np.savetxt(prefix + i + ".txt", self.mix_weights(MAPs[i]).detach().numpy(), delimiter="\t")
-
-
-        np.savetxt(prefix + "cnvs_inf.txt", torch.round(MAPs['cnv_probs']).detach().numpy(), delimiter="\t")

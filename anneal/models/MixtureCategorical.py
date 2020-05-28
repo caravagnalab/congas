@@ -17,7 +17,10 @@ from torch.distributions import constraints
 
 class MixtureCategorical(Model):
 
-    params_name = set(['data', 'mu', 'K', 'hidden_dim', 'probs', 'theta_scale', 'theta_rate', 'batch_size', 'mixture','pld', 'segments', 'num_observations', 'mask', 'segments_or'])
+    params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.1, 0.1, 0.2, 0.3, 0.2, 0.1]), 'hidden_dim': 6,
+              'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
+              'mixture': None}
+    data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, param_dict):
         if param_dict['probs'] is None:
@@ -101,42 +104,4 @@ class MixtureCategorical(Model):
 
         return init
 
-    def init_fn(self):
-        def init_function(site):
-            if site["name"] == "cnv_probs":
-                return self.create_dirichlet_init_values()
-            if site["name"] == "mixture_weights":
-                return self.params['mixture']
-            if site["name"] == "norm_factor":
-                return torch.mean(self.params['data'] / (2 * self.params['mu']), axis=0)
-            raise ValueError(site["name"])
-        return init_function
-
-    def write_results(self, MAPs, prefix, trace=None, cell_ass = None):
-
-        assert trace is not None or cell_ass is not None
-        if cell_ass is not None:
-            cell_assig = cell_ass
-        else:
-            cell_assig = trace.nodes["assignment"]["value"]
-
-        cnvs_table = torch.zeros((self.params['num_observations'], self.params['segments_or']))
-
-        for i in range(self.params['segments_or']):
-            if i in self.params['mask']:
-                cnvs_table[:, i] = trace.nodes['copy_number_{}'.format((self.params['mask'] == i).nonzero().item())][
-                    'value']
-            else:
-                cnvs_table[:, i] = torch.ones(1000) * self.params['mu_or'][i]
-
-        np.savetxt(prefix + "cell_assignmnts.txt", cell_assig.numpy(), delimiter="\t")
-        np.savetxt(prefix + "cnvs_table.txt", cnvs_table.numpy(), delimiter="\t")
-        np.savetxt(prefix + "cnvs_inf.txt", torch.argmax(MAPs["cnv_probs"], dim=2).numpy(), delimiter="\t")
-
-        for i in MAPs:
-            if i == "cnv_probs":
-                for k in range(MAPs[i].shape[0]):
-                    np.savetxt(prefix + i + "_" + str(k) + ".txt", MAPs[i][k].detach().numpy(), delimiter="\t")
-            else:
-                np.savetxt(prefix + i + ".txt", MAPs[i].detach().numpy(), delimiter="\t")
 

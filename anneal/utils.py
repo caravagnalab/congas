@@ -4,6 +4,8 @@ import torch
 import os
 import numpy as np
 from anneal.core import *
+import torch.nn.functional as F
+
 
 def plot_loss(loss, save = False, output = ""):
     plt.plot(loss)
@@ -21,7 +23,7 @@ def run_analysis(model, optim, elbo, inf_type, data_dict, param_dict = {}, poste
     loss = interface.run(steps, seed, {'lr' : lr})
     plot_loss(loss)
 
-    interface.save_results(post)
+    interface.save_results()
 
 def load_simulation_seg(dir, prefix):
 
@@ -40,6 +42,11 @@ def load_real_data_seg():
     pass
 
 
+def mix_weights(beta):
+    beta = torch.tensor(beta)
+    beta1m_cumprod = (1 - beta).cumprod(-1)
+    return F.pad(beta, (0, 1), value=1) * F.pad(beta1m_cumprod, (1, 0), value=1)
+
 def write_results(params, prefix, new_dir = False, dir_pref = None):
 
     if (new_dir):
@@ -53,4 +60,7 @@ def write_results(params, prefix, new_dir = False, dir_pref = None):
         out_prefix = prefix + "_"
 
     for i in params:
-            np.savetxt(out_prefix + i + ".txt", params[i], delimiter="\t")
+            if i == 'param_kappa':
+                np.savetxt(out_prefix + i + ".txt", mix_weights(params[i]), delimiter="\t")
+            else:
+                np.savetxt(out_prefix + i + ".txt", params[i], delimiter="\t")

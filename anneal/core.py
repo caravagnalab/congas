@@ -5,6 +5,10 @@ from pyro.optim import ClippedAdam
 
 
 class Interface:
+    """
+
+
+    """
     def __init__(self,model = None, optimizer = None, loss = None, inf_type = SVI):
         self._model_fun = model
         self._optimizer = optimizer

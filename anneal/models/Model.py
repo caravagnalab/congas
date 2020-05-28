@@ -19,9 +19,6 @@ class Model(ABC):
     def init_fn(self):
         pass
 
-    @abstractmethod
-    def write_results(self, prefix):
-        pass
 
     def set_params(self, params_dict):
 

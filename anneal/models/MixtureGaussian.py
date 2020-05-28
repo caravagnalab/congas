@@ -120,20 +120,3 @@ class MixtureGaussian(Model):
 
 
 
-    def write_results(self, MAPs, prefix, trace=None, cell_ass = None):
-
-        assert trace is not None or cell_ass is not None
-        if cell_ass is not None:
-            cell_assig = cell_ass
-        else:
-            cell_assig = trace.nodes["assignment"]["value"]
-
-        np.savetxt(prefix + "cell_assignmnts.txt", cell_assig.numpy(), delimiter="\t")
-
-        for i in MAPs:
-            if i == "cnv_probs":
-                np.savetxt(prefix + i + ".txt", MAPs[i].detach().numpy(), delimiter="\t")
-            else:
-                np.savetxt(prefix + i + ".txt", MAPs[i].detach().numpy(), delimiter="\t")
-
-        np.savetxt(prefix + "cnvs_inf.txt", torch.round(MAPs['cnv_probs']).detach().numpy(), delimiter="\t")
