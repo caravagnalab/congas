@@ -15,10 +15,6 @@ class Model(ABC):
     def guide(self):
         pass
 
-    @abstractmethod
-    def init_fn(self):
-        pass
-
 
     def set_params(self, params_dict):
 

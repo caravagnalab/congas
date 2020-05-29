@@ -1,6 +1,5 @@
 import pyro
 import pyro.distributions as dist
-import numpy as np
 import torch
 from anneal.models.Model import Model
 from pyro.ops.indexing import Vindex
@@ -119,31 +118,4 @@ class MixtureDirichlet(Model):
                 return torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
             raise ValueError(site["name"])
         return init_function
-
-    def write_results(self, MAPs, prefix, trace=None, cell_ass = None):
-
-        assert trace is not None or cell_ass is not None
-        if cell_ass is not None :
-            cell_assig = cell_ass
-        else:
-            cell_assig = trace.nodes["assignment"]["value"]
-
-        cnvs_table = torch.zeros((self.params['num_observations'], self.params['segments_or']))
-
-        for i in range(self.params['segments_or']):
-            if i in self.params['mask']:
-                cnvs_table[:, i] = trace.nodes['copy_number_{}'.format((self.params['mask'] == i).nonzero().item())]['value']
-            else:
-                cnvs_table[:, i] = torch.ones(1000) * self.params['mu_or'][i]
-
-        np.savetxt(prefix + "cell_assignmnts.txt", cell_assig.numpy(), delimiter="\t")
-        np.savetxt(prefix + "cnvs_table.txt", cnvs_table.numpy(), delimiter="\t")
-        np.savetxt(prefix + "cnvs_inf.txt", torch.argmax(MAPs["cnv_probs"], dim=2).numpy(), delimiter="\t")
-
-        for i in MAPs:
-            if i == "cnv_probs":
-                for k in range(MAPs[i].shape[0]):
-                    np.savetxt(prefix + i + "_" + str(k) + ".txt", MAPs[i][k].detach().numpy(), delimiter="\t")
-            else:
-                np.savetxt(prefix + i + ".txt", MAPs[i].detach().numpy(), delimiter="\t")
 

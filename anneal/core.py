@@ -2,6 +2,7 @@ from pyro.infer import SVI, infer_discrete, TraceEnum_ELBO, TraceGraph_ELBO
 import pyro
 from pyro import poutine
 from pyro.optim import ClippedAdam
+import numpy as np
 
 
 class Interface:
@@ -18,7 +19,8 @@ class Interface:
         self._model_trained = None
         self._guide_trained = None
         self._loss_trained = None
-        self._MAP = None
+        self._MAP = False
+        self._Hmm = False
 
 
     def __repr__(self):
@@ -63,8 +65,10 @@ class Interface:
         model = self._model.model
         guide = self._model.guide(MAP)
         self._MAP = MAP
+        if "hmm" in type(self._model).__name__.lower():
+            self._Hmm = True
         optim = self._optimizer(param_optimizer)
-        elbo = self._loss(param_loss) if param_loss is not None else self._loss()
+        elbo = self._loss(**param_loss) if param_loss is not None else self._loss()
         svi = self._inf_type(model, guide, optim, elbo)
         num_observations = self._model._data['data'].shape[1]
         loss = [None] * steps
@@ -95,24 +99,25 @@ class Interface:
         return res
 
     def learned_parameters(self, posterior = False ,optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {"lr" : 0.05}, param_loss = None, steps = 200, verbose = False):
-        if self._MAP:
+
+        if self._MAP and type(self._model).__name__ is not 'MixtureCategorical':
             params = self._guide_trained()
 
         else:
             params = self._get_params_no_autoguide()
 
 
-        print("Computing assignment probabilities")
         if posterior:
+            print("Computing assignment probabilities")
             discrete_params = self.inference_categorical_posterior(optim, loss, param_optimizer, param_loss, steps, verbose)
 
         else:
             discrete_params = self.inference_categorical_MAP()
 
         trained_params_dict = {i : params[i].detach().numpy() for i in params}
-        trained_params_dict['cell_assignmnts'] = discrete_params.numpy()
 
-        return trained_params_dict
+
+        return {**trained_params_dict,**discrete_params}
 
 
 
@@ -125,9 +130,16 @@ class Interface:
 
         inferred_model = infer_discrete(trained_model, temperature=0, first_available_dim=-2)
         trace = poutine.trace(inferred_model).get_trace()
-
-        return trace.nodes["assignment"]["value"]
-
+        if(self._Hmm):
+            zs = []
+            for i in range(self._model._data['segments']):
+                zs.append(trace.nodes["z_{}".format(i)]["value"].numpy())
+            if "simple" in type(self._model).__name__.lower():
+                return {"z": np.asarray(zs)}
+            else:
+                return {'assignement' : trace.nodes["assignment"]["value"].numpy(),  "z" : np.asarray(zs)}
+        else:
+            return {'assignement' : trace.nodes["assignment"]["value"].numpy()}
     def inference_categorical_posterior(self, optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {'lr' : 0.05}, param_loss = None, steps = 300, verbose = False):
 
         full_guide = self._model.full_guide(self._MAP)

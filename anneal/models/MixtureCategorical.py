@@ -1,13 +1,10 @@
 import pyro
 import pyro.distributions as dist
-import numpy as np
 import torch
-from pyro.infer import config_enumerate
 
-from models.Model import Model
+from anneal.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
-from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
 
 
@@ -18,89 +15,97 @@ from torch.distributions import constraints
 class MixtureCategorical(Model):
 
     params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.1, 0.1, 0.2, 0.3, 0.2, 0.1]), 'hidden_dim': 6,
-              'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
-              'mixture': None}
+              'theta_scale': 9, 'theta_rate': 3, 'batch_size': None,
+              'mixture': None, 'gamma_multiplier' : 4}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
-    def __init__(self, param_dict):
-        if param_dict['probs'] is None:
-            param_dict['probs'] = torch.ones(param_dict['hidden_dim']) * 1/param_dict['hidden_dim']
-        super().__init__(param_dict, self.params_name)
+    def __init__(self, data_dict):
+        self.params['mixture'] = 1 / torch.ones(self.params['K'])
+        self._params = self.params
+        self._data = None
+        super().__init__(data_dict, self.data_name)
 
     def model(self,*args, **kwargs):
-        I, N = self.params['data'].shape
-        weights = pyro.sample('mixture_weights', dist.Dirichlet((1 / self.params['K']) * torch.ones(self.params['K'])))
+        I, N = self._data['data'].shape
+        batch = N if self._params['batch_size'] else self._params['batch_size']
+        weights = pyro.sample('mixture_weights', dist.Dirichlet((1 / self._params['K']) * torch.ones(self._params['K'])))
+
         with pyro.plate('segments', I):
-            with pyro.plate('components', self.params['K']):
-                cnv_probs = pyro.sample("cnv_probs", dist.Dirichlet(
-                    self.params['probs'] * 1 / torch.ones(self.params['hidden_dim'])))
-                cc = pyro.sample("cc", dist.Categorical(cnv_probs), infer={"enumerate": "sequential"})
-        with pyro.plate('data', N, self.params['batch_size']):
+            with pyro.plate('components', self._params['K']):
+                cc = pyro.sample("cc", dist.Categorical(self.create_dirichlet_init_values()))
+
+        with pyro.plate("data2", N, batch):
+            theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
+
+        with pyro.plate('data', N, batch):
             assignment = pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
-            theta = pyro.sample('norm_factor', dist.Gamma(self.params['theta_scale'], self.params['theta_rate']))
             for i in pyro.plate('segments2', I):
-                pyro.sample('obs_{}'.format(i), dist.Poisson((Vindex(cc)[assignment,i] * theta * self.params['mu'][i])
-                                                             + 1e-8), obs=self.params['data'][i, :])
-    def guide(self, *args, **kwargs):
+                pyro.sample('obs_{}'.format(i), dist.Poisson((Vindex(cc)[...,assignment,i] * theta * self._data['mu'][i])
+                                                             + 1e-8), obs=self._data['data'][i, :])
+    def guide(self,MAP = False,  *args, **kwargs):
         def guide_ret(*args, **kargs):
-            I, N = self.params['data'].shape
-            param_weights = pyro.param("param_weights", lambda: torch.ones(self.params['K']) / self.params['K'],
+
+            I, N = self._data['data'].shape
+            batch = N if self._params['batch_size'] else self._params['batch_size']
+
+            if(MAP):
+                gamma_MAP = pyro.param("param_gamma_MAP", lambda : torch.mean(self._data['data'] / (
+                    2 * self._data['mu'].reshape(self._data['data'].shape[0], 1)), axis=0),
+                    constraint=constraints.positive)
+            else:
+                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(
+                    self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0], 1)), axis=0) *
+                                                                      self._params['gamma_multiplier'],
+                                         constraint=constraints.positive)
+                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * self._params['gamma_multiplier'],
+                                        constraint=constraints.positive)
+            param_weights = pyro.param("param_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
+                                       constraint=constraints.simplex)
+            cnv_weights = pyro.param("param_cnv_weights", lambda:  self.create_dirichlet_init_values(),
                                constraint=constraints.simplex)
-            cnv_weights = pyro.param("cnv_weights", lambda: torch.ones((3,7,5)),
-                               constraint=constraints.simplex)
-            gamma = pyro.param("param_gamma", lambda: torch.ones(N) * 2,
-                               constraint=constraints.positive)
-            weights = pyro.sample('mixture_weights', dist.Delta(param_weights, event_dim = 1))
+
+
+            weights = pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
 
             with pyro.plate('segments', I):
                 with pyro.plate('components', self.params['K']):
-                    cnv_probs = pyro.sample("cnv_probs", dist.Delta(cnv_weights, event_dim=1))
+                    pyro.sample("cc", dist.Categorical(cnv_weights))
 
-                    pyro.sample("cc", dist.Categorical(cnv_probs))
-            with pyro.plate('data', N, self.params['batch_size']):
-                pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
-                pyro.sample('norm_factor', dist.Delta(gamma))
+            with pyro.plate("data2", N, batch):
+                if(MAP):
+                    pyro.sample('norm_factor', dist.Delta(gamma_MAP))
+                else:
+                    pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
+
         return guide_ret
 
+    def full_guide(self, MAP=False, *args, **kwargs):
+        def full_guide_ret(*args, **kargs):
+            I, N = self._data['data'].shape
+            batch = N if self._params['batch_size'] else self._params['batch_size']
 
-    def final_guide(self, MAPs):
-        def full_guide(self, *args, **kargs):
-            I,N = self.params['data'].shape
-            with poutine.block(hide=["cnv_probs","norm_factor", "mixture_weights"]):
-                weights = pyro.sample('mixture_weights',
-                                      dist.Dirichlet(MAPs['mixture_weights'].detach()))
-                with pyro.plate('segments', I):
-                    with pyro.plate('components', self.params['K']):
-                        cnv_probs = pyro.sample("cnv_probs", dist.Dirichlet(
-                            MAPs['cnv_probs'].detach()))
-                with pyro.plate('data', N, self.params['batch_size']):
-                    assignment_probs = pyro.param('assignment_probs',
-                                                  torch.ones(N, self.params['K']) / self.params['K']
-                                                  , constraint=constraints.unit_interval)
-                    assignment = pyro.sample('assignment', dist.Categorical(assignment_probs), infer={"enumerate": "parallel"})
-                    pyro.sample('norm_factor',
-                                        dist.Delta(MAPs['norm_factor'].detach()))
-                    for i in pyro.plate('segments2', I):
-                        pyro.sample('copy_number_{}'.format(i),
-                                         dist.Categorical(Vindex(cnv_probs)[assignment, i, :]),
-                                         infer={"enumerate": "parallel"})
-
-        return full_guide
+            with poutine.block(hide_types=["param"]):  # Keep our learned values of global parameters.
+                self.guide(MAP)()
+            with pyro.plate('data', N, batch):
+                assignment_probs = pyro.param('assignment_probs', torch.ones(N, self._params['K']) / self._params['K'],
+                                              constraint=constraints.unit_interval)
+                pyro.sample('assignment', dist.Categorical(assignment_probs), infer={"enumerate": "parallel"})
+        return full_guide_ret
 
     def create_dirichlet_init_values(self):
 
-        bins = self.params['hidden_dim'] * 2
+        bins = self._params['hidden_dim'] * 120
         low_prob = 1 / bins
-        high_prob = low_prob * (self.params['hidden_dim'] + 1)
-        init = torch.zeros(self.params['K'], self.params['segments'], self.params['hidden_dim'])
+        high_prob = 1 - (low_prob * (self._params['hidden_dim'] - 1))
+        init = torch.zeros(self._params['K'], self._data['segments'], self._params['hidden_dim'])
 
-        for i in range(len(self.params['pld'])):
-            for j in range(self.params['hidden_dim']):
-                for k in range(self.params['K']):
+        for i in range(len(self._data['pld'])):
+            for j in range(self._params['hidden_dim']):
+                for k in range(self._params['K']):
                     if k == 0:
-                        init[k, i, j] = high_prob if j == torch.ceil(self.params['pld'][i]) else low_prob
+                        init[k, i, j] = high_prob if j == torch.ceil(self._data['pld'][i]) else low_prob
                     else:
-                        init[k, i, j] = high_prob if j == torch.floor(self.params['pld'][i]) else low_prob
+                        init[k, i, j] = high_prob if j == torch.floor(self._data['pld'][i]) else low_prob
 
         return init
 

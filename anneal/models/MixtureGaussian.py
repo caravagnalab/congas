@@ -1,6 +1,5 @@
 import pyro
 import pyro.distributions as dist
-import numpy as np
 import torch
 from anneal.models.Model import Model
 from pyro.ops.indexing import Vindex
@@ -20,7 +19,7 @@ from torch.distributions import constraints
 class MixtureGaussian(Model):
 
     params = {'K': 2, 'cnv_mean': 2, 'cnv_var': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
-              'mixture': None}
+              'mixture': None, 'gamma_multiplier' : 4}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):
@@ -63,11 +62,11 @@ class MixtureGaussian(Model):
                                          constraint=constraints.positive)
                 cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_var'],
                                       constraint=constraints.positive)
-                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) * 3,
+                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) * self._params['gamma_multiplier'],
                                    constraint=constraints.positive)
-                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * 3,
+                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * self._params['gamma_multiplier'],
                                    constraint=constraints.positive)
-                weights = pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
+                pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
 
                 with pyro.plate('segments', I):
                     with pyro.plate('components', self._params['K']):
@@ -76,8 +75,7 @@ class MixtureGaussian(Model):
                 with pyro.plate("data2", N, batch):
                     pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
 
-                with pyro.plate('data', N, self._params['batch_size']):
-                    pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
+
             return guide_ret
 
 
