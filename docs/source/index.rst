@@ -3,7 +3,7 @@
 Clustering and Inference of Copy-Number variations from RNA
 ===========================================================
 
-.. include:: ../../README.rst
+.. include:: ./README.rst
 
 .. warning:: package is still under developmet
 
