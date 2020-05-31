@@ -8,10 +8,10 @@ jobs:
       osx_image: xcode11.2  # Python 3.7.4 running on macOS 10.14.4
       language: shell       # 'language: python' is an error on Travis CI macOS
 
-  install:
-    pip3 install --upgrade pip  # all three OSes agree about 'pip3'
-    pip3 install -r requirements.txt
-  script:
-    coverage run setup.py test
-    bash <(curl -s https://codecov.io/bash)
+install:
+  pip3 install --upgrade pip  # all three OSes agree about 'pip3'
+  pip3 install ".[test]"
+script:
+  coverage run setup.py test
+  bash <(curl -s https://codecov.io/bash)
 
