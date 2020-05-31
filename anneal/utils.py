@@ -1,13 +1,19 @@
+""" Utils class
+
+A set of utils function to run automatically an enetire inference cycle, plotting and saving results.
+
+"""
+
 import matplotlib.pyplot as plt
 import pandas as pd
-import torch
 import os
+from anneal.Interface import Interface
 import numpy as np
-from anneal.core import *
-import torch.nn.functional as F
+from pyro.optim import ClippedAdam
+from pyro.infer import SVI, TraceEnum_ELBO
+import torch
 
-
-def plot_loss(loss, save = False, output = ""):
+def plot_loss(loss, save = False, output = "run1"):
     plt.plot(loss)
     plt.title("ELBO")
     plt.xlabel("step")
@@ -15,17 +21,59 @@ def plot_loss(loss, save = False, output = ""):
     if(save):
         plt.savefig(output + "_ELBO.png")
 
-def run_analysis(model, optim, elbo, inf_type, data_dict, param_dict = {}, posteriors = False, seed = 3, steps = 500, lr = 0.01):
+def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},MAP = True ,posteriors = False, seed = 3, step_post=300):
+
+    """ Run an entire analysis with the minimum amount of parameters
+
+    Simple function to run an entire step of inference and get the learned parameters back, less customizable than using
+    directly the :class:`~anneal.core.Interface` , but still should satisfy most of hte user.
+    Look at the R interface for even a easier
+
+
+    Args:
+        data_dict: dictionary with parameters
+        model: a model from one in anneal.models
+        optim: an optimizer from pyro.optim
+        elbo: a loss function from pyro.infer
+        inf_type: SVI or NUTS (Hemiltonian MCMC)
+        steps: number of inference steps
+        lr: learning rate
+        param_dict: parameters for the model, look at the model documentation if you want to change them
+        MAP: perform MAP over the last layer of random variable in the model or learn the parameters of the distribution
+        posteriors: posterior assignments or Viterbi-like MAP estimates
+        seed: seed for pyro.set_rng_seed
+        step_post: steps if learning also posterior probabilities
+
+    Returns:
+        dict: dictionary of parameters:value
+        list: loss (divided by sample size)  for every time step (not the one for posteriors)
+
+    """
 
     interface = Interface(model, optim, elbo, inf_type)
+
     interface.initialize_model(data_dict)
     interface.set_model_params(param_dict)
-    loss = interface.run(steps, seed, {'lr' : lr})
-    plot_loss(loss)
 
-    interface.save_results()
+    loss = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr}, verbose=False, MAP = MAP)
+    plot_loss(loss)
+    parameters = interface.learned_parameters(posterior=posteriors, verbose=False, steps=step_post)
+
+    return parameters, loss
 
 def load_simulation_seg(dir, prefix):
+
+    """ Read data from companion R package simulation
+
+    A function to read the
+
+    Args:
+        dir: directory where the simulation files are stored
+        prefix:
+
+    Returns:
+
+    """
 
     data = pd.read_csv(dir + "/" + prefix + "_data.csv")
     cnv = pd.read_csv(dir + "/" + prefix + "_cnv.csv")
@@ -33,7 +81,6 @@ def load_simulation_seg(dir, prefix):
     segments, num_observations = data.shape
     ploidy = torch.tensor(cnv["ploidy_real"], dtype=torch.float32)
     mu = torch.tensor(cnv["mu"])
-    # mu = mu.repeat((num_observations, 1)).t()
 
     return {"data" : data, "pld" : ploidy, "segments": segments,"mu" : mu}
 
@@ -42,12 +89,20 @@ def load_real_data_seg():
     pass
 
 
-def mix_weights(beta):
-    beta = torch.tensor(beta)
-    beta1m_cumprod = (1 - beta).cumprod(-1)
-    return F.pad(beta, (0, 1), value=1) * F.pad(beta1m_cumprod, (1, 0), value=1)
+
 
 def write_results(params, prefix, new_dir = False, dir_pref = None):
+    """ Write parameters
+
+    This function writes the parameters appending a prefix and optionally in a new directory
+
+    Args:
+        params: parameters dictionary
+        prefix: prefix to append to the filenames
+        new_dir: create a new directory or use an exsisting ones
+        dir_pref: name of the directory
+
+    """
 
     if (new_dir):
         try:
@@ -60,7 +115,4 @@ def write_results(params, prefix, new_dir = False, dir_pref = None):
         out_prefix = prefix + "_"
 
     for i in params:
-            if i == 'param_kappa':
-                np.savetxt(out_prefix + i + ".txt", mix_weights(params[i]), delimiter="\t")
-            else:
-                np.savetxt(out_prefix + i + ".txt", params[i], delimiter="\t")
+            np.savetxt(out_prefix + i + ".txt", params[i], delimiter="\t")

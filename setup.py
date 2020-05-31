@@ -13,11 +13,13 @@ setup(name='anneal',
       license='GPL-3.0',
       packages=['anneal'],
       install_requires=[
-            'matplotlib',
-            'pandas',
-            'pyro-ppl'
+            'matplotlib>=3.1',
+            'pandas>=1.0',
+            'pyro-ppl>=0.4',
+            'numpy>=1.18'
       ],
-      include_package_data=True,long_description=readme(),
+      include_package_data=True,
+      long_description=readme(),
       classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',

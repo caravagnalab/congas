@@ -10,15 +10,37 @@ from torch.distributions import constraints
 
 
 
-# A simple mixture model for CNV inference, it assumes independence among the different segments, needs to be used after
-# calling CNV regions with bulk DNA. CNVs modelled as LogNormal variables
-
-# TODO: add support for joint inference with bulk counts (or allelic frequencies)
 
 
 class MixtureGaussian(Model):
 
-    params = {'K': 2, 'cnv_mean': 2, 'cnv_var': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
+    """
+
+    A simple mixture model for CNV inference, it assumes independence among the different segments, needs to be used after
+    calling CNV regions with bulk DNA or RNA. CNVs events are modelled as LogNormal distributions.
+
+
+    Model parameters:
+        K = number of clusters (default = 2)
+        cnv_var = var of the LogNorm prior (default = 0.6)
+        theta_scale = scale for the normalization factor variable (default = 3)
+        theta_rate = rate for the normalization factor variable (default = 1)
+        batch_size = batch size (default = None)
+        mixture = prior for the mixture weights (default = 1/torch.ones(K))
+        gamma_multiplier = multiplier Gamma(rate * gamma_multiplier, shape  * gamma_multiplier) when we also want to
+        infer the shape and rate parameter (i.e. when MAP = FALSE) (default = 4)
+
+
+
+
+
+    TODO:
+        add support for joint inference with bulk counts (or allelic frequencies)
+
+
+    """
+
+    params = {'K': 2, 'cnv_var': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
               'mixture': None, 'gamma_multiplier' : 4}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 

@@ -8,18 +8,35 @@ from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
 
 
+"""
+
+CNVs events are modelled as Categorical variables, what is shared by the clusters is the class probabilities for a given CNV satet
+but different cells in the same clusters are allowed to have different CNVs profiles. It tries to get a mean 
 
 
-# A simple mixture model for CNV inference, it assumes independence among the different segments, needs to be used after
-# calling CNV regions with bulk DNA.
+Model parameters:
+    T = max number of clusters (default = 6)
+    probs = prior probs for the Dirichlet modelling group CNV probabilities (default=torch.tensor([0.1,0.1,0.2,0.3,0.2,0.1]))
+    hidden_dim = hidden dimensions (should be len(probs))
+    theta_scale = scale for the normalization factor variable (default = 3)
+    theta_rate = rate for the normalization factor variable (default = 1)
+    batch_size = batch size (default = None)
+    mixture = prior for the mixture weights (default = 1/torch.ones(K))
+    gamma_multiplier = multiplier Gamma(rate * gamma_multiplier, shape  * gamma_multiplier) when we also want to 
+    infer the shape and rate parameter (i.e. when MAP = FALSE) (default = 4)
 
-# TODO: add support for joint inference with bulk counts (or allelic frequencies)
 
+
+
+
+TODO: 
+    test on meaningful datasets
+"""
 
 class MixtureDirichlet(Model):
 
     params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.1,0.1,0.2,0.3,0.2,0.1]), 'hidden_dim': 6,'theta_scale' : 3,  'theta_rate': 1, 'batch_size': None,
-              'mixture': None}
+              'mixture': None, 'gamma_multiplier' : 5}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):
@@ -58,9 +75,9 @@ class MixtureDirichlet(Model):
                                            constraint=constraints.simplex)
                 hidden_vals = pyro.param("param_hidden_weights", lambda: self.create_dirichlet_init_values(),
                                          constraint=constraints.simplex)
-                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) * 3,
+                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) * self._params['gamma_multiplier'],
                                    constraint=constraints.positive)
-                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * 3,
+                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) *  self._params['gamma_multiplier'],
                                    constraint=constraints.positive)
                 weights = pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
 
@@ -71,8 +88,7 @@ class MixtureDirichlet(Model):
                 with pyro.plate("data2", N, batch):
                     pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
 
-                with pyro.plate('data', N, self._params['batch_size']):
-                    pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
+
             return guide_ret
 
 

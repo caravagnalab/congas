@@ -1,6 +1,5 @@
 import pyro
 import pyro.distributions as dist
-import numpy as np
 import torch
 from anneal.models.Model import Model
 from pyro.ops.indexing import Vindex
@@ -9,19 +8,37 @@ from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
 import torch.nn.functional as F
 
+"""
+
+Same as :class:`~anneal.models.MixtureGaussian.MixtureGaussian` but the number of cluster is non-parametric
+ (estimated with a stick-breaking Dirichlet Mixture Process)
+
+
+Model parameters:
+    T = max number of clusters (default = 6)
+    cnv_var = var of the LogNorm prior (default = 0.6)
+    theta_scale = scale for the normalization factor variable (default = 3)
+    theta_rate = rate for the normalization factor variable (default = 1)
+    batch_size = batch size (default = None)
+    mixture = prior for the mixture weights (default = 1/torch.ones(K))
+    gamma_multiplier = multiplier Gamma(rate * gamma_multiplier, shape  * gamma_multiplier) when we also want to 
+    infer the shape and rate parameter (i.e. when MAP = FALSE) (default = 4)
 
 
 
-# A simple mixture model for CNV inference, it assumes independence among the different segments, needs to be used after
-# calling CNV regions with bulk DNA. CNVs modelled as LogNormal variables
 
-# TODO: add support for joint inference with bulk counts (or allelic frequencies)
+
+TODO: 
+    add support for joint inference with bulk counts (or allelic frequencies)
+
+
+"""
 
 
 class MixtureGaussianDMP(Model):
 
     params = {'T' : 6, 'cnv_mean' : 2, 'cnv_var' :0.6, 'theta_scale' : 3, 'theta_rate' : 1, 'batch_size' : None,
-            'mixture' : None, 'alpha' : 0.01}
+            'mixture' : None, 'alpha' : 0.01, 'gamma_multiplier' : 5}
     data_name = set(['data', 'mu','pld', 'segments'])
 
 
@@ -71,10 +88,12 @@ class MixtureGaussianDMP(Model):
                 cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_var'],
                                      constraint=constraints.positive)
                 gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(
-                    self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0], 1)), axis=0) * 3,
+                    self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0], 1)), axis=0)  *  self._params['gamma_multiplier'],
                                          constraint=constraints.positive)
-                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * 3,
+                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1)  *  self._params['gamma_multiplier'],
                                         constraint=constraints.positive)
+                param_weights = pyro.param("param_weights", lambda: torch.ones(self._params['T']) / self._params['T'],
+                                           constraint=constraints.simplex)
 
                 with pyro.plate("beta_plate", self._params['T'] - 1):
                     pyro.sample("mixture_weights", dist.Beta(1, kappa))
@@ -84,10 +103,7 @@ class MixtureGaussianDMP(Model):
                         pyro.sample('cnv_probs', dist.LogNormal(torch.log(cnv_mean), cnv_var))
 
                 with pyro.plate("data2", N, batch):
-                    pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
-
-                with pyro.plate('data', N, self._params['batch_size']):
-                    pyro.sample('assignment', dist.Categorical(kappa), infer={"enumerate": "parallel"})
+                    pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate).expand([N]))
 
             return guide_ret
 

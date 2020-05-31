@@ -10,14 +10,33 @@ from torch.distributions import constraints
 
 
 class HmmMixtureRNA(Model):
+    """
 
-# Same as before but it assumes a structure of dependence between two adjacent segments,
-# probably works very well with dyploid corrected scRNA-seq data changing t
+    It is basically :class:`~anneal.models.MixtureDirichlet.MixtureDirichlet` but with markov property
 
-# Currently it is basically the same model as below
-# TODO: add point gamma prior on theta (maybe test if necessary)
 
-    params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.1, 0.1, 0.2, 0.3, 0.2, 0.1]), 'hidden_dim': 6,
+    Model parameters:
+        T = max number of clusters (default = 6)
+        hidden_dim = hidden dimensions (should be len(probs))
+        theta_scale = scale for the normalization factor variable (default = 3)
+        theta_rate = rate for the normalization factor variable (default = 1)
+        batch_size = batch size (default = None)
+        mixture = prior for the mixture weights (default = 1/torch.ones(K))
+        gamma_multiplier = multiplier Gamma(rate * gamma_multiplier, shape  * gamma_multiplier) when we also want to
+        infer the shape and rate parameter (i.e. when MAP = FALSE) (default = 4)
+        t = probability of remaining in the same state (default=0.1)
+
+
+
+
+
+
+    TODO:
+        test on meaningful datasets
+
+    """
+
+    params = {'K': 2, 'hidden_dim': 6,
                   'theta_scale': 9, 'theta_rate': 3, 'batch_size': None,
                   'mixture': None, 'gamma_multiplier' : 4, 't':  0.1}
     data_name = set(['data', 'mu', 'pld', 'segments'])
@@ -50,37 +69,23 @@ class HmmMixtureRNA(Model):
                 pyro.sample('obs_{}'.format(i), dist.Poisson((z * theta * self._data['mu'][i])
                                                              + 1e-8), obs=self._data['data'][i, :])
 
-    def guide(self,MAP = False,*args, **kwargs):
-        if (MAP):
-            return AutoDelta(poutine.block(self.model, expose=['mixture_weights', 'norm_factor', 'cnv_probs']),
-                             init_loc_fn=self.init_fn())
-        else:
-            def guide_ret(*args, **kwargs):
-                I, N = self._data['data'].shape
-                batch = N if self._params['batch_size'] else self._params['batch_size']
+    def guide(self,*args, **kwargs):
+        return AutoDelta(poutine.block(self.model, expose=['mixture_weights', 'norm_factor', 'cnv_probs', 'pi']),
+                         init_loc_fn=self.init_fn())
 
-                param_weights = pyro.param("param_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
-                                           constraint=constraints.simplex)
-                cnv_mean = pyro.param("param_cnv_mean", lambda: self.create_gaussian_init_values(),
-                                      constraint=constraints.positive)
-                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_var'],
-                                     constraint=constraints.positive)
-                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(
-                    self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0], 1)), axis=0) *
-                                                                      self._params['gamma_multiplier'],
-                                         constraint=constraints.positive)
-                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * self._params['gamma_multiplier'],
-                                        constraint=constraints.positive)
-                pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
+    def full_guide(self, *args, **kwargs):
+        def full_guide_ret(*args, **kargs):
+            I, N = self._data['data'].shape
+            batch = N if self._params['batch_size'] else self._params['batch_size']
 
-                with pyro.plate('segments', I):
-                    with pyro.plate('components', self._params['K']):
-                        pyro.sample('cnv_probs', dist.LogNormal(torch.log(cnv_mean), cnv_var))
+            with poutine.block(hide_types=["param"]):  # Keep our learned values of global parameters.
+                self.guide()()
+            with pyro.plate('data', N, batch):
+                assignment_probs = pyro.param('assignment_probs', torch.ones(N, self._params['K']) / self._params['K'],
+                                              constraint=constraints.unit_interval)
+                pyro.sample('assignment', dist.Categorical(assignment_probs), infer={"enumerate": "parallel"})
 
-                with pyro.plate("data2", N, batch):
-                    pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
-
-            return guide_ret
+        return full_guide_ret
 
     def init_fn(self):
         def init_function(site):

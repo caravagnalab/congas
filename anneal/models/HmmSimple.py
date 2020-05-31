@@ -5,21 +5,32 @@ from anneal.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
-from torch.distributions import constraints
 
 
 
 class HmmSimple(Model):
+    """
 
-# Same as before but it assumes a structure of dependence between two adjacent segments,
-# probably works very well with dyploid corrected scRNA-seq data changing t
+    Simple Hmm, models the CNV event as a Categorical variable. It does not cluster the data
 
-# Currently it is basically the same model as below
-# TODO: add point gamma prior on theta (maybe test if necessary)
+
+    Model parameters:
+        T = max number of clusters (default = 6)
+        init_probs = prior probs for initial state CNV probabilities (default=torch.tensor([0.1,0.1,0.2,0.3,0.2,0.1]))
+        hidden_dim = hidden dimensions (should be len(probs))
+        theta_scale = scale for the normalization factor variable (default = 3)
+        theta_rate = rate for the normalization factor variable (default = 1)
+        batch_size = batch size (default = None)
+        t = probability of remaining in the same state (default=0.1)
+
+
+
+
+    """
 
     params = {'init_probs': torch.tensor([0.1, 0.1, 0.2, 0.3, 0.2, 0.1]), 'hidden_dim': 6,
                   'theta_scale': 9, 'theta_rate': 3, 'batch_size': None ,
-                  'gamma_multiplier' : 4, 't':  0.1}
+                  't':  0.1}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):
