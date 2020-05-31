@@ -7,4 +7,11 @@ jobs:
       os: osx
       osx_image: xcode11.2  # Python 3.7.4 running on macOS 10.14.4
       language: shell       # 'language: python' is an error on Travis CI macOS
-  install: pip install "."
+
+  install:
+    pip3 install --upgrade pip  # all three OSes agree about 'pip3'
+    pip3 install ".[test]"
+    pip3 install codecov
+script:
+  python3 setup.py test || python setup.py test
+  codecov

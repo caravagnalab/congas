@@ -27,7 +27,7 @@ setup(name='anneal',
         'Topic :: Scientific/Engineering :: Bio-Informatics'
       ],
       keywords='scRNA scDNA RNA CNV CNA Cancer Copy-number Bioinformatics',
-      test_suite='anneal.test',
-      tests_require=['anneal'],
+      test_suite='nose.collector',
+      tests_require=['nose'],
       zip_safe=False)
 
