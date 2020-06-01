@@ -1,6 +1,5 @@
 # RNA CNVs Inference and Clustering
 
-
 [![Build Status](https://travis-ci.org/Militeee/anneal.svg?branch=master)](https://travis-ci.org/Militeee/anneal)
 [![codecov](https://codecov.io/gh/Militeee/anneal/branch/master/graph/badge.svg)](https://codecov.io/gh/Militeee/anneal)
 
