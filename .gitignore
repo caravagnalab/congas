@@ -140,3 +140,6 @@ dmypy.json
 .idea
 
 run_cnv_inference.py
+
+
+*.egg-info

@@ -1,3 +1,4 @@
-include data/
+include anneal/data/*
 include README.md
 include docs/*.html
+recursive-exclude anneal/test/

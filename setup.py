@@ -5,13 +5,13 @@ def readme():
         return f.read()
 
 setup(name='anneal',
-      version='0.1',
+      version='0.1.5',
       description='rnA cNvs iNferEnce And cLustering',
       url='https://github.com/Militeee/anneal',
       author='Salvatore Milite',
       author_email='militesalvatore@gmail.com',
       license='GPL-3.0',
-      packages=['anneal'],
+      packages=['anneal', 'anneal.models'],
       install_requires=[
             'matplotlib>=3.1',
             'pandas>=1.0',
