@@ -11,7 +11,6 @@ import pyro
 from pyro import poutine
 from pyro.optim import ClippedAdam
 import numpy as np
-import torch
 import torch.nn.functional as F
 
 

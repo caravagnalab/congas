@@ -29,7 +29,7 @@ To run a simple analysis on the example data
 
 ```
 import anneal as an
-from anneal.models.MixtureGaussian import MixtureGaussian
+from anneal.models import MixtureGaussian
 data_dict = an.simulation_data
 params, loss = an.run_analysis(data_dict,MixtureGaussian, steps=200, lr=0.05)
 ```

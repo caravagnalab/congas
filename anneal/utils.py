@@ -75,8 +75,8 @@ def load_simulation_seg(dir, prefix):
 
     """
 
-    data = pd.read_csv(dir + "/" + prefix + "_data.csv")
-    cnv = pd.read_csv(dir + "/" + prefix + "_cnv.csv")
+    data = pd.read_csv(dir + os.sep + prefix + "_data.csv")
+    cnv = pd.read_csv(dir + os.sep + prefix + "_cnv.csv")
     data = torch.tensor(data.values, dtype=torch.float32).t()
     segments, num_observations = data.shape
     ploidy = torch.tensor(cnv["ploidy_real"], dtype=torch.float32)
@@ -110,7 +110,7 @@ def write_results(params, prefix, new_dir = False, dir_pref = None):
         except FileExistsError:
             print("Directory already existing, saving there")
 
-        out_prefix = "./" + dir_pref + "/" + prefix + "_"
+        out_prefix = "." + os.sep + dir_pref + os.sep + prefix + "_"
     else:
         out_prefix = prefix + "_"
 

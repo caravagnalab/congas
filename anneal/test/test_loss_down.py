@@ -1,16 +1,12 @@
 import unittest
 import anneal.utils
-from anneal.models.HmmSimple import HmmSimple
-from anneal.models.MixtureGaussian import MixtureGaussian
-from anneal.models.MixtureGaussianDMP import MixtureGaussianDMP
-from anneal.models.MixtureDirichlet import MixtureDirichlet
-from anneal.models.HmmMIxtureRNA import HmmMixtureRNA
+from anneal.models import HmmMixtureRNA, MixtureDirichlet, MixtureGaussianDMP, MixtureGaussian, HmmSimple
 import os
 
 LR = 0.05
 ST = 2
 ST2 = 2
-data_dir = "anneal/data"
+data_dir = "anneal" + os.sep + "data"
 
 class LossTest(unittest.TestCase):
     def test_GaussianMixture(self):
