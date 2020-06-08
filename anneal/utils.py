@@ -66,7 +66,6 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, i
     interface.set_model_params(param_dict)
 
     loss = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr}, verbose=False, MAP = MAP)
-    plot_loss(loss)
     parameters = interface.learned_parameters(posterior=posteriors, verbose=False, steps=step_post)
 
     return parameters, loss
