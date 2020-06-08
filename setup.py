@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name='anneal',
-      version='0.1.5',
+      version='0.1.7',
       description='rnA cNvs iNferEnce And cLustering',
       url='https://github.com/Militeee/anneal',
       author='Salvatore Milite',

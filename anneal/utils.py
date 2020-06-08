@@ -21,6 +21,12 @@ def plot_loss(loss, save = False, output = "run1"):
     if(save):
         plt.savefig(output + "_ELBO.png")
 
+
+def dict_to_tensor(dict):
+    for k,v in dict.items():
+        if not torch.is_tensor(v):
+            dict[k] = torch.tensor(v)
+
 def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},MAP = True ,posteriors = False, seed = 3, step_post=300):
 
     """ Run an entire analysis with the minimum amount of parameters
@@ -50,8 +56,12 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, i
 
     """
 
+
+
     interface = Interface(model, optim, elbo, inf_type)
 
+    dict_to_tensor(data_dict)
+    dict_to_tensor(param_dict)
     interface.initialize_model(data_dict)
     interface.set_model_params(param_dict)
 
