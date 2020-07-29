@@ -12,12 +12,12 @@ from torch.distributions import constraints
 
 
 
-class MixtureGaussian(Model):
+class MixtureGaussianNorm(Model):
 
     """
 
     A simple mixture model for CNV inference, it assumes independence among the different segments, needs to be used after
-    calling CNV regions with bulk DNA or RNA. CNVs events are modelled as LogNormal distributions.
+    calling CNV regions with normalized RNA. CNVs events are modelled as Normal distributions.
 
 
     Model parameters:
@@ -40,8 +40,8 @@ class MixtureGaussian(Model):
 
     """
 
-    params = {'K': 2, 'cnv_var': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
-              'mixture':  None, 'gamma_multiplier' : 4}
+    params = {'K': 2, 'cnv_var': 2, 'theta_mean': 0, 'theta_var': 1, 'batch_size': None,
+              'mixture': torch.tensor([1,1]), 'gamma_multiplier' : 4}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):
@@ -57,19 +57,17 @@ class MixtureGaussian(Model):
 
         with pyro.plate('segments', I):
             with pyro.plate('components', self._params['K']):
-                cc = pyro.sample('cnv_probs', dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_var']))
+                cc = pyro.sample('cnv_probs', dist.Normal(self._data['pld'], self._params['cnv_var']))
 
         with pyro.plate("data2", N, batch):
-            theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
+            theta = pyro.sample('norm_factor', dist.Normal(self._params['theta_mean'], self._params['theta_var']))
 
         with pyro.plate('data', N, batch):
-
             assignment = pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
 
-
             for i in pyro.plate('segments2', I):
-                pyro.sample('obs_{}'.format(i), dist.Poisson((Vindex(cc)[assignment,i] * theta * self._data['mu'][i])
-                                                             + 1e-8), obs=self._data['data'][i, :])
+                pyro.sample('obs_{}'.format(i), dist.Normal(Vindex(cc)[assignment,i] * theta
+                                                             ), obs=self._data['data'][i, :])
 
     def guide(self,MAP = False,*args, **kwargs):
         if(MAP):
@@ -134,7 +132,7 @@ class MixtureGaussian(Model):
             if site["name"] == "cnv_probs":
                 return self.create_gaussian_init_values()
             if site["name"] == "mixture_weights":
-                return self._params['mixture']
+                return self.params['mixture']
             if site["name"] == "norm_factor":
                 return torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
             raise ValueError(site["name"])

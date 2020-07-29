@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name='anneal',
-      version='0.1.7',
+      version='0.1.9',
       description='rnA cNvs iNferEnce And cLustering',
       url='https://github.com/Militeee/anneal',
       author='Salvatore Milite',
@@ -16,7 +16,7 @@ setup(name='anneal',
             'matplotlib>=3.1',
             'pandas>=1.0',
             'pyro-ppl>=0.4',
-            'numpy>=1.18'
+            'numpy>=1.18', 'torch', 'pyro'
       ],
       include_package_data=True,
       long_description=readme(),

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import torch
 
 class Model(ABC):
     """
@@ -26,8 +27,14 @@ class Model(ABC):
     def guide(self):
         pass
 
-
     def set_params(self, params_dict):
 
         self._params.update(params_dict)
+        if self._params['mixture'] is None:
+            self._params['mixture'] = 1 / (torch.ones(self._params['K']) * self._params['K'])
+        print(self._params)
 
+
+    def BIC(self):
+
+        pass

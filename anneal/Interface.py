@@ -92,6 +92,7 @@ class Interface:
               seed (int): seed to be passed to  pyro.set_rng_seed
               MAP (bool): Perform learn a Delta distribution over the outer layer of the model graph
               verbose(bool): show loss for each step, if false the functions just prints a progress bar
+              BAF(torch.tensor): if provided use BAF penalization in the loss
 
           Returns:
               list: loss (divided by sample size) for each step
@@ -109,6 +110,7 @@ class Interface:
             self._Hmm = True
         optim = self._optimizer(param_optimizer)
         elbo = self._loss(**param_loss) if param_loss is not None else self._loss()
+        
         svi = self._inf_type(model, guide, optim, elbo)
         num_observations = self._model._data['data'].shape[1]
         loss = [None] * steps

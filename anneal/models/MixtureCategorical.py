@@ -16,12 +16,11 @@ class MixtureCategorical(Model):
 
     params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.1, 0.1, 0.2, 0.3, 0.2, 0.1]), 'hidden_dim': 6,
               'theta_scale': 9, 'theta_rate': 3, 'batch_size': None,
-              'mixture': None, 'gamma_multiplier' : 4}
+              'mixture': torch.tensor([1,1]), 'gamma_multiplier' : 4}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):
-        self.params['mixture'] = 1 / torch.ones(self.params['K'])
-        self._params = self.params
+        self._params = self.params.copy()
         self._data = None
         super().__init__(data_dict, self.data_name)
 

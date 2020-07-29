@@ -38,13 +38,12 @@ TODO:
 class MixtureGaussianDMP(Model):
 
     params = {'T' : 6, 'cnv_mean' : 2, 'cnv_var' :0.6, 'theta_scale' : 3, 'theta_rate' : 1, 'batch_size' : None,
-            'mixture' : None, 'alpha' : 0.01, 'gamma_multiplier' : 5}
+            'mixture' : torch.tensor([1,1]), 'alpha' : 0.01, 'gamma_multiplier' : 5}
     data_name = set(['data', 'mu','pld', 'segments'])
 
 
     def __init__(self, data_dict):
-        self.params['mixture'] = 1 / torch.ones(self.params['T'])
-        self._params = self.params
+        self._params = self.params.copy()
         self._data = None
         super().__init__(data_dict, self.data_name)
 
@@ -108,7 +107,7 @@ class MixtureGaussianDMP(Model):
             return guide_ret
 
     def create_gaussian_init_values(self):
-        init = torch.zeros(self._params['T'], self._data['segments'])
+        init = torch.zeros(self._params['T'], self._data['data'].shape[0])
         for i in range(len(self._data['pld'])):
             for k in range(self._params['T']):
                 if k == 0:
