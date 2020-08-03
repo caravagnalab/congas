@@ -36,7 +36,7 @@ TODO:
 class MixtureDirichlet(Model):
 
     params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.1,0.1,0.2,0.3,0.2,0.1]), 'hidden_dim': 6,'theta_scale' : 3,  'theta_rate': 1, 'batch_size': None,
-              'mixture': torch.tensor([1,1]), 'gamma_multiplier' : 5}
+              'mixture': torch.tensor([1.,1.]), 'gamma_multiplier' : 5}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):

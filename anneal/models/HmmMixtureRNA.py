@@ -38,7 +38,7 @@ class HmmMixtureRNA(Model):
 
     params = {'K': 2, 'hidden_dim': 6,
                   'theta_scale': 9, 'theta_rate': 3, 'batch_size': None,
-                  'mixture': torch.tensor([1,1]), 'gamma_multiplier' : 4, 't':  0.1}
+                  'mixture': torch.tensor([1.,1.]), 'gamma_multiplier' : 4, 't':  0.1}
     data_name = set(['data', 'mu', 'pld', 'segments'])
 
     def __init__(self, data_dict):
