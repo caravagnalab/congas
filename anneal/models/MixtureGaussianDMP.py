@@ -38,7 +38,7 @@ TODO:
 class MixtureGaussianDMP(Model):
 
     params = {'T' : 6, 'cnv_mean' : 2, 'cnv_var' :0.6, 'theta_scale' : 3, 'theta_rate' : 1, 'batch_size' : None,
-            'mixture' : torch.tensor([1,1]), 'alpha' : 0.01, 'gamma_multiplier' : 5}
+            'mixture' : torch.tensor([1,1]), 'alpha' : 0.0001, 'gamma_multiplier' : 5}
     data_name = set(['data', 'mu','pld', 'segments'])
 
 

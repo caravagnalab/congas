@@ -30,7 +30,7 @@ class Model(ABC):
     def set_params(self, params_dict):
 
         self._params.update(params_dict)
-        if self._params['mixture'] is None:
+        if 'mixture' in self._params and self._params['mixture'] is None:
             self._params['mixture'] = 1 / (torch.ones(self._params['K']) * self._params['K'])
         print(self._params)
 

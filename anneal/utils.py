@@ -94,9 +94,6 @@ def load_simulation_seg(dir, prefix):
     return {"data" : data, "pld" : ploidy, "segments": segments,"mu" : mu}
 
 
-def load_real_data_seg():
-    pass
-
 
 
 
