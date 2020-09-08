@@ -1,7 +1,7 @@
 import pyro
 import pyro.distributions as dist
 import torch
-from anneal.models.Model import Model
+from congas.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
@@ -21,14 +21,12 @@ class MixtureGaussian(Model):
 
 
     Model parameters:
-        K = number of clusters (default = 2)
-        cnv_var = var of the LogNorm prior (default = 0.6)
-        theta_scale = scale for the normalization factor variable (default = 3)
-        theta_rate = rate for the normalization factor variable (default = 1)
-        batch_size = batch size (default = None)
-        mixture = prior for the mixture weights (default = 1/torch.ones(K))
-        gamma_multiplier = multiplier Gamma(rate * gamma_multiplier, shape  * gamma_multiplier) when we also want to
-        infer the shape and rate parameter (i.e. when MAP = FALSE) (default = 4)
+        - **K = number** of clusters (default = 2)
+        - **cnv_var = var of the LogNorm prior (default = 0.6)
+        - **theta_scale =** scale for the normalization factor variable (default = 3)
+        - **theta_rate =** rate for the normalization factor variable (default = 1)
+        - **batch_size =** batch size (default = None)
+        - **mixture =** prior for the mixture weights (default = 1/torch.ones(K))
 
 
 

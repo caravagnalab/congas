@@ -2,7 +2,7 @@ import pyro
 import pyro.distributions as dist
 import torch
 
-from anneal.models.Model import Model
+from congas.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from torch.distributions import constraints

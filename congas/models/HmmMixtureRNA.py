@@ -1,7 +1,7 @@
 import pyro
 import pyro.distributions as dist
 import torch
-from anneal.models.Model import Model
+from congas.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
@@ -12,7 +12,7 @@ from torch.distributions import constraints
 class HmmMixtureRNA(Model):
     """
 
-    It is basically :class:`~anneal.models.MixtureDirichlet.MixtureDirichlet` but with markov property
+    It is basically :class:`~congas.models.MixtureDirichlet.MixtureDirichlet` but with markov property
 
 
     Model parameters:

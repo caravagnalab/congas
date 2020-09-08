@@ -1,11 +1,12 @@
-# RNA CNVs Inference and Clustering
+# Copy number genotyping from scRNA sequencing
+
 
 [![Build Status](https://travis-ci.org/Militeee/anneal.svg?branch=master)](https://travis-ci.org/Militeee/anneal)
 [![codecov](https://codecov.io/gh/Militeee/anneal/branch/master/graph/badge.svg)](https://codecov.io/gh/Militeee/anneal)
 
 
 A set of Pyro models and functions to infer CNA from scRNA-seq data. 
-It comes with a companion R package (**in progress**) that works as an interface and provides preprocessing, simulation and visualization routines.
+It comes with a companion R package (hlink) that works as an interface and provides preprocessing, simulation and visualization routines.
 
 
 Currently providing:
@@ -23,15 +24,15 @@ Coming soon:
 
 To install:
 
-`$ pip install anneal`
+`$ pip install congas`
 
 To run a simple analysis on the example data
 
-```
-import anneal as an
-from anneal.models import MixtureGaussian
-data_dict = an.simulation_data
-params, loss = an.run_analysis(data_dict,MixtureGaussian, steps=200, lr=0.05)
+```python
+import congas as cn
+from congas.models import MixtureGaussian
+data_dict = cn.simulation_data
+params, loss = cn.run_analysis(data_dict,MixtureGaussian, steps=200, lr=0.05)
 ```
 
 

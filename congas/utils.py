@@ -7,7 +7,7 @@ A set of utils function to run automatically an enetire inference cycle, plottin
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from anneal.Interface import Interface
+from congas.Interface import Interface
 import numpy as np
 from pyro.optim import ClippedAdam
 from pyro.infer import SVI, TraceEnum_ELBO
@@ -32,13 +32,13 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, i
     """ Run an entire analysis with the minimum amount of parameters
 
     Simple function to run an entire step of inference and get the learned parameters back, less customizable than using
-    directly the :class:`~anneal.core.Interface` , but still should satisfy most of hte user.
+    directly the :class:`~congas.core.Interface` , but still should satisfy most of hte user.
     Look at the R interface for even a easier
 
 
     Args:
         data_dict: dictionary with parameters
-        model: a model from one in anneal.models
+        model: a model from one in congas.models
         optim: an optimizer from pyro.optim
         elbo: a loss function from pyro.infer
         inf_type: SVI or NUTS (Hemiltonian MCMC)

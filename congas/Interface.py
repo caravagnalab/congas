@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 
 class Interface:
-    """ The interface class for all the anneal models.
+    """ The interface class for all the congas models.
 
     Basically it takes a model, am optimizer and a loss function and provides a functions to run the inference and get the parameters
     back masking the differences between models.
@@ -151,7 +151,7 @@ class Interface:
         """ Return all the estimated  parameter values
 
             Calls the right set of function for retrieving learned parameters according to the model type
-            If posterior=True all the other parameters are just passed to :func:`~anneal.core.Interface.inference_categorical_posterior`
+            If posterior=True all the other parameters are just passed to :func:`~congas.core.Interface.inference_categorical_posterior`
 
             Args:
 
@@ -193,7 +193,7 @@ class Interface:
         """ Return all the estimated  parameter values
 
                     Calls the right set of function for retrieving learned parameters according to the model type
-                    If posterior=True all the other parameters are just passed to :func:`~anneal.Interface.Interface.inference_categorical_posterior`
+                    If posterior=True all the other parameters are just passed to :func:`~congas.Interface.Interface.inference_categorical_posterior`
 
                     Args:
 
@@ -227,7 +227,7 @@ class Interface:
 
         """Learn assignment probabilities
 
-        Basically it runs with the same parameters as :func:`~anneal.core.Interface.run` but with a different guide
+        Basically it runs with the same parameters as :func:`~congas.core.Interface.run` but with a different guide
         , where it learns just the posterior assignment probabilities.
 
 

@@ -1,7 +1,7 @@
 import pyro
 import pyro.distributions as dist
 import torch
-from anneal.models.Model import Model
+from congas.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
@@ -31,16 +31,9 @@ class MixtureGaussianNorm(Model):
         infer the shape and rate parameter (i.e. when MAP = FALSE) (default = 4)
 
 
-
-
-
-    TODO:
-        add support for joint inference with bulk counts (or allelic frequencies)
-
-
     """
 
-    params = {'K': 2, 'cnv_sd': 100, 'batch_size': None,
+    params = {'K': 2, 'cnv_sd': 3, 'batch_size': None,
               'mixture': None, 'a' : 0. , 'b' : 100., 'init_prec' : None , 'init_mean' : None}
     data_name = set(['data'])
 

@@ -6,8 +6,8 @@ A set of Pyro models and an interface for simultaneous CNV clustering and infere
 """
 
 
-from anneal.Interface import Interface
-from anneal.utils import *
+from congas.Interface import Interface
+from congas.utils import *
 import os
 
 location = os.path.dirname(os.path.realpath(__file__))

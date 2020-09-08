@@ -1,7 +1,7 @@
 import pyro
 import pyro.distributions as dist
 import torch
-from anneal.models.Model import Model
+from congas.models.Model import Model
 from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 """
 
-Same as :class:`~anneal.models.MixtureGaussian.MixtureGaussian` but the number of cluster is non-parametric
+Same as :class:`~congas.models.MixtureGaussian.MixtureGaussian` but the number of cluster is non-parametric
  (estimated with a stick-breaking Dirichlet Mixture Process)
 
 

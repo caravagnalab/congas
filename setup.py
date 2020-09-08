@@ -4,14 +4,14 @@ def readme():
     with open('README.md') as f:
         return f.read()
 
-setup(name='anneal',
-      version='0.2.1',
-      description='rnA cNvs iNferEnce And cLustering',
-      url='https://github.com/Militeee/anneal',
+setup(name='congas',
+      version='0.0.1',
+      description='Copy Number genotyping from single cell RNA sequencing',
+      url='https://github.com/Militeee/congas',
       author='Salvatore Milite',
       author_email='militesalvatore@gmail.com',
       license='GPL-3.0',
-      packages=['anneal', 'anneal.models'],
+      packages=['congas', 'congas.models'],
       install_requires=[
             'matplotlib>=3.1',
             'pandas>=1.0',

@@ -1,4 +1,4 @@
-RNA CNVs Inference and Clustering
+Copy number genotyping from scRNA sequencing
 =================================
 
 A set of Pyro models and functions to infer CNA from scRNA-seq data. It
@@ -19,10 +19,6 @@ Currently providing:
 -  The version of MixtureDirichlet but with temporal dependency
    (HmmMixtureRNA)
 
-Coming soon: - A linear model in the emission that can account for known
-covariates - The equivalent of MixtureGaussian but with CNVs as
-Categorical random variable - A model on genes (all the other models
-assume a division in segments)
 
 To install:
 
