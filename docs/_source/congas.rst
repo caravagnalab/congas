@@ -5,7 +5,7 @@ Anneal Core
 Package contents
 ---------------
 
-.. automodule:: anneal
+.. automodule:: congas
    :members:
    :undoc-members:
    :show-inheritance:
@@ -14,7 +14,7 @@ Package contents
 anneal.Interface module
 -----------------------
 
-.. automodule:: anneal.Interface
+.. automodule:: congas.Interface
    :members:
    :undoc-members:
    :show-inheritance:
@@ -22,7 +22,7 @@ anneal.Interface module
 anneal.utils module
 -------------------
 
-.. automodule:: anneal.utils
+.. automodule:: congas.utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -41,6 +41,6 @@ Models
 .. toctree::
    :maxdepth: 4
 
-   anneal.models
+   congas.models
 
 

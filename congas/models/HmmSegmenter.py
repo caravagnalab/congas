@@ -28,10 +28,10 @@ class HmmSegmenter(Model):
 
     """
 
-    params = {'init_probs': torch.tensor([0.1, 0.1, 0.5, 0.1, 0.1]), 'hidden_dim': 5,
-                  't':  1e-6}
+    params = {'init_probs': torch.tensor([0.1, 0.3, 0.2, 0.2, 0.1, 0.1]), 'hidden_dim': 6,
+                  't':  1e-8}
 
-    data_name = set(['data', 'dist', 'segments'])
+    data_name = set(['data', 'dist'])
 
     def __init__(self, data_dict):
         self._params = self.params.copy()
@@ -51,16 +51,21 @@ class HmmSegmenter(Model):
         probs_z = pyro.sample("cnv_probs",
                               dist.Dirichlet((1- self._params['t']) * torch.eye(self._params['hidden_dim']) + (
                                       self._params['t'])).to_event(1))
-        probs_y =  torch.tensor([[1., 3., 32., 16., 8., 6.4],[64.,32., 32., 32., 32., 32.]])
+        probs_y =  torch.tensor([[2., 64., 32., 21.5, 16., 43.],[64., 64., 64., 64., 64., 64.]])
 
 
-        z = pyro.sample("init_state", dist.Categorical(pi),
+        z = pyro.sample("z_0", dist.Categorical(pi),
                 infer={"enumerate": "parallel"})
 
-        for i in pyro.markov(range(I)):
+        pyro.sample("y_{}".format(0), dist.Beta(probs_y[0, z], probs_y[1, z]),
+                    obs=self._data['data'][0, 0])
+
+        for i in pyro.markov(range(1,I)):
             z = pyro.sample("z_{}".format(i), dist.Categorical(Vindex(probs_z)[z]),
                             infer={"enumerate": "parallel"})
-            pyro.sample("y_{}".format(i), dist.Beta(probs_y[0,z.squeeze(-1)], probs_y[1,z.squeeze(-1)]),
+
+
+            pyro.sample("y_{}".format(i), dist.Beta(probs_y[0,z], probs_y[1,z]),
                         obs= self._data['data'][i,0])
 
 

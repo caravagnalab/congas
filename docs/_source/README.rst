@@ -1,5 +1,5 @@
-RNA CNVs Inference and Clustering
-=================================
+Copy number genotyping from scRNA sequencing
+============================================
 
 A set of Pyro models and functions to infer CNA from scRNA-seq data. It
 comes with a companion R package (**in progress**) that works as an
@@ -19,20 +19,17 @@ Currently providing:
 -  The version of MixtureDirichlet but with temporal dependency
    (HmmMixtureRNA)
 
-Coming soon: - A linear model in the emission that can account for known
-covariates - The equivalent of MixtureGaussian but with CNVs as
-Categorical random variable - A model on genes (all the other models
-assume a division in segments)
+Coming soon: - NUTS support
 
 To install:
 
-``$ pip install anneal``
+``$ pip install congas``
 
 To run a simple analysis on the example data
 
 ::
 
-    import anneal as an
-    from anneal.models import MixtureGaussian
-    data_dict = an.simulation_data
-    params, loss = an.run_analysis(data_dict,MixtureGaussian, steps=200, lr=0.05)
+    import congas as cn
+    from congas.models import MixtureGaussian
+    data_dict = cn.simulation_data
+    params, loss = cn.run_analysis(data_dict,MixtureGaussian, steps=200, lr=0.05)

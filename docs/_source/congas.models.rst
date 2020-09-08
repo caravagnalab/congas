@@ -7,7 +7,7 @@ Submodules
 anneal.models.HmmMIxtureRNA module
 ----------------------------------
 
-.. automodule:: anneal.models.HmmMIxtureRNA
+.. automodule:: congas.models.HmmMIxtureRNA
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ anneal.models.HmmMIxtureRNA module
 anneal.models.HmmSimple module
 ------------------------------
 
-.. automodule:: anneal.models.HmmSimple
+.. automodule:: congas.models.HmmSimple
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +23,7 @@ anneal.models.HmmSimple module
 anneal.models.MixtureCategorical module
 ---------------------------------------
 
-.. automodule:: anneal.models.MixtureCategorical
+.. automodule:: congas.models.MixtureCategorical
    :members:
    :undoc-members:
    :show-inheritance:
@@ -31,7 +31,7 @@ anneal.models.MixtureCategorical module
 anneal.models.MixtureDirichlet module
 -------------------------------------
 
-.. automodule:: anneal.models.MixtureDirichlet
+.. automodule:: congas.models.MixtureDirichlet
    :members:
    :undoc-members:
    :show-inheritance:
@@ -39,7 +39,7 @@ anneal.models.MixtureDirichlet module
 anneal.models.MixtureGaussian module
 ------------------------------------
 
-.. automodule:: anneal.models.MixtureGaussian
+.. automodule:: congas.models.MixtureGaussian
    :members:
    :undoc-members:
    :show-inheritance:
@@ -47,7 +47,7 @@ anneal.models.MixtureGaussian module
 anneal.models.MixtureGaussianDMP module
 ---------------------------------------
 
-.. automodule:: anneal.models.MixtureGaussianDMP
+.. automodule:: congas.models.MixtureGaussianDMP
    :members:
    :undoc-members:
    :show-inheritance:
@@ -55,7 +55,7 @@ anneal.models.MixtureGaussianDMP module
 anneal.models.MixtureGaussianEXP module
 ---------------------------------------
 
-.. automodule:: anneal.models.MixtureGaussianEXP
+.. automodule:: congas.models.MixtureGaussianEXP
    :members:
    :undoc-members:
    :show-inheritance:
@@ -63,7 +63,7 @@ anneal.models.MixtureGaussianEXP module
 anneal.models.MixtureGaussianGenes module
 -----------------------------------------
 
-.. automodule:: anneal.models.MixtureGaussianGenes
+.. automodule:: congas.models.MixtureGaussianGenes
    :members:
    :undoc-members:
    :show-inheritance:
@@ -71,7 +71,7 @@ anneal.models.MixtureGaussianGenes module
 anneal.models.Model module
 --------------------------
 
-.. automodule:: anneal.models.Model
+.. automodule:: congas.models.Model
    :members:
    :undoc-members:
    :show-inheritance:

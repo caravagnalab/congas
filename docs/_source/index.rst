@@ -12,7 +12,7 @@ Clustering and Inference of Copy-Number variations from RNA
 .. toctree::
    :maxdepth: 2
 
-   anneal
+   congas
 
 
 

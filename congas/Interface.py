@@ -214,7 +214,6 @@ class Interface:
         if(self._Hmm):
             zs = []
             for i in range(self._model._data['segments']):
-                print(self._model._data['segments'])
                 zs.append(trace.nodes["z_{}".format(i)]["value"].numpy())
             if "simple" in self._model_string.lower() or "segmenter" in self._model_string.lower():
                 return {"z": np.asarray(zs)}

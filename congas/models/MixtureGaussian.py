@@ -40,9 +40,9 @@ class MixtureGaussian(Model):
 
     """
 
-    params = {'K': 2, 'cnv_var': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
-              'mixture':  None, 'gamma_multiplier' : 4}
-    data_name = set(['data', 'mu', 'pld', 'segments'])
+    params = {'K': 2, 'cnv_sd': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
+              'mixture':  None}
+    data_name = set(['data', 'mu', 'pld'])
 
     def __init__(self, data_dict):
 
@@ -57,7 +57,7 @@ class MixtureGaussian(Model):
 
         with pyro.plate('segments', I):
             with pyro.plate('components', self._params['K']):
-                cc = pyro.sample('cnv_probs', dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_var']))
+                cc = pyro.sample('cnv_probs', dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_sd']))
 
         with pyro.plate("data2", N, batch):
             theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
@@ -80,16 +80,15 @@ class MixtureGaussian(Model):
                 I, N = self._data['data'].shape
                 batch = N if self._params['batch_size'] else self._params['batch_size']
 
-                param_weights = pyro.param("param_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
+                param_weights = pyro.param("param_mixture_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
                                            constraint=constraints.simplex)
-                cnv_mean = pyro.param("param_cnv_mean", lambda: self.create_gaussian_init_values(),
+                cnv_mean = pyro.param("param_cnv_probs", lambda: self.create_gaussian_init_values(),
                                          constraint=constraints.positive)
-                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_var'],
+                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_sd'],
                                       constraint=constraints.positive)
-                gamma_scale = pyro.param("param_gamma_scale", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) * self._params['gamma_multiplier'],
+                gamma_scale = pyro.param("param_norm_factor", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0),
                                    constraint=constraints.positive)
-                gamma_rate = pyro.param("param_rate", lambda: torch.ones(1) * self._params['gamma_multiplier'],
-                                   constraint=constraints.positive)
+
                 pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
 
                 with pyro.plate('segments', I):
@@ -97,7 +96,7 @@ class MixtureGaussian(Model):
                         pyro.sample('cnv_probs', dist.LogNormal(torch.log(cnv_mean), cnv_var))
 
                 with pyro.plate("data2", N, batch):
-                    pyro.sample('norm_factor', dist.Gamma(gamma_scale, gamma_rate))
+                    pyro.sample('norm_factor', dist.Delta(gamma_scale))
 
 
             return guide_ret
@@ -122,7 +121,7 @@ class MixtureGaussian(Model):
                 self.guide(MAP)()
             with pyro.plate('data', N, batch):
                 assignment_probs = pyro.param('assignment_probs', torch.ones(N, self._params['K']) / self._params['K'],
-                                              constraint=constraints.unit_interval)
+                                              constraint=constraints.simplex)
                 pyro.sample('assignment', dist.Categorical(assignment_probs), infer={"enumerate": "parallel"})
 
         return full_guide_ret
