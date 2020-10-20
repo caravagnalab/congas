@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name='congas',
-      version='0.0.1',
+      version='0.0.12',
       description='Copy Number genotyping from single cell RNA sequencing',
       url='https://github.com/Militeee/congas',
       author='Salvatore Milite',
@@ -16,7 +16,9 @@ setup(name='congas',
             'matplotlib>=3.1',
             'pandas>=1.0',
             'pyro-ppl>=0.4',
-            'numpy>=1.18'
+            'numpy>=1.18',
+            'scikit-learn',
+
       ],
       include_package_data=True,
       long_description=readme(),

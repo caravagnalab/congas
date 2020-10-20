@@ -6,6 +6,7 @@ from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
+from sklearn.cluster import KMeans
 
 
 
@@ -33,8 +34,8 @@ class MixtureGaussianNorm(Model):
 
     """
 
-    params = {'K': 2, 'cnv_sd': 3, 'batch_size': None,
-              'mixture': None, 'a' : 0. , 'b' : 100., 'init_prec' : None , 'init_mean' : None}
+    params = {'K': 2, 'batch_size': None, 'cnv_sd' : 2,
+              'mixture': None, 'a' : 0. , 'b' : 100., 'init_sd' : 1 , 'init_mean' : None}
     data_name = set(['data'])
 
     def __init__(self, data_dict):
@@ -49,22 +50,20 @@ class MixtureGaussianNorm(Model):
         weights = pyro.sample('mixture_weights', dist.Dirichlet(self._params['mixture']))
 
         with pyro.plate('segments', I):
+            norm_sd = pyro.sample('norm_sd', dist.Uniform(self._params['a'], self._params['b']))
             with pyro.plate('components', self._params['K']):
-                norm_prec = pyro.sample('norm_prec', dist.Uniform(self._params['a'],self._params['b']))
                 cc = pyro.sample('cnv_probs', dist.Normal(0., self._params['cnv_sd']))
 
-        print(cc)
-        print(norm_prec)
 
         with pyro.plate('data', N, batch):
             assignment = pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
             for i in pyro.plate('segments2', I):
-                pyro.sample('obs_{}'.format(i), dist.Normal(Vindex(cc)[assignment,i], 1./norm_prec[assignment,i]
+                pyro.sample('obs_{}'.format(i), dist.Normal(Vindex(cc)[assignment,i], norm_sd[i]
                                                              ), obs=self._data['data'][i, :])
 
     def guide(self,MAP = False,*args, **kwargs):
         if(MAP):
-            return AutoDelta(poutine.block(self.model, expose=['mixture_weights',  'cnv_probs', 'norm_prec']),
+            return AutoDelta(poutine.block(self.model, expose=['mixture_weights',  'cnv_probs', 'norm_sd']),
                              init_loc_fn=self.init_fn())
         else:
             def guide_ret(*args, **kwargs):
@@ -75,7 +74,7 @@ class MixtureGaussianNorm(Model):
                                            constraint=constraints.simplex)
                 cnv_mean = pyro.param("param_cnv_mean", lambda: self.create_gaussian_init_values(),
                                          constraint=constraints.positive)
-                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_sd'],
+                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['init_sd'],
                                       constraint=constraints.positive)
 
                 pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
@@ -93,9 +92,11 @@ class MixtureGaussianNorm(Model):
     def create_gaussian_init_values(self):
         init = torch.zeros(self._params['K'], self._data['data'].shape[0])
         for i in range(self._data['data'].shape[0]):
+            X = self._data['data'][i,:].detach().numpy()
+            km = KMeans(n_clusters=self._params['K'], random_state=0).fit(X.reshape(-1, 1))
+            centers = torch.tensor(km.cluster_centers_).flatten()
             for k in range(self._params['K']):
-                ridx = torch.randint(0,self._data['data'].shape[1],(1,)).item()
-                init[k, i] = self._data['data'][i,ridx]
+                init[k, i] = centers[k]
         return init
 
     def full_guide(self, MAP = False , *args, **kwargs):
@@ -115,10 +116,7 @@ class MixtureGaussianNorm(Model):
 
 
     def init_fn(self):
-        if self._params['init_prec'] is None:
-            self._params['init_prec'] = torch.ones(self._params['K'], self._data['data'].shape[0])
         def init_function(site):
-
             if site["name"] == "cnv_probs":
                 if self._params['init_mean'] is None:
                     return self.create_gaussian_init_values()
@@ -126,8 +124,8 @@ class MixtureGaussianNorm(Model):
                     return self._params['init_mean']
             if site["name"] == "mixture_weights":
                 return self._params['mixture']
-            if site["name"] == "norm_prec":
-                return self._params['init_prec']
+            if site["name"] == "norm_sd":
+                return self._params['init_sd'] * torch.ones(self._data['data'].shape[0])
             raise ValueError(site["name"])
         return init_function
 

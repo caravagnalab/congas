@@ -114,7 +114,7 @@ def write_results(params, prefix, new_dir = False, dir_pref = None):
         try:
             os.mkdir(dir_pref)
         except FileExistsError:
-            print("Directory already existing, saving there")
+            print("Directory already existing, saving there", flush=True)
 
         out_prefix = "." + os.sep + dir_pref + os.sep + prefix + "_"
     else:

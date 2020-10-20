@@ -1,4 +1,4 @@
-include anneal/data/*
+include congas/data/*
 include README.md
 include docs/*.html
-recursive-exclude anneal/test/
+recursive-exclude congas/test/

@@ -72,7 +72,7 @@ class Interface:
     def set_model_params(self, param_dict):
         self._model.set_params(param_dict)
 
-    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False, verbose = True):
+    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False, verbose = True, convergence_detection = False, epsilon = 0.01):
 
         """ This function runs the inference of non-categorical parameters
 
@@ -115,23 +115,27 @@ class Interface:
         num_observations = self._model._data['data'].shape[1]
         loss = [None] * steps
         print('Running {} on {} cells for {} steps'.format(
-           self._model_string, num_observations, steps))
+           self._model_string, num_observations, steps), flush=True)
+
         for step in range(steps):
             loss[step] = svi.step() / num_observations
 
             if verbose:
-                print('{: >5d}\t{}'.format(step, loss[step]))
+                print('{: >5d}\t{}'.format(step, loss[step]), flush=True)
             else:
                 if (step+1) % 10 == 0:
-                    print('.' , end='')
+                    print('.' , end='', flush=True)
                 if (step+1) % 100 == 0:
-                    print("\n")
+                    print("\n", flush=True)
 
         self._model_trained = model
         self._guide_trained = guide
         self._loss_trained = loss
-        print("Done!")
+        print("Done!", flush=True)
         return loss
+
+
+
 
 
     def _get_params_no_autoguide(self):
@@ -174,15 +178,17 @@ class Interface:
 
 
         if posterior:
-            print("Computing assignment probabilities")
+            print("Computing assignment probabilities", flush=True)
             discrete_params = self.inference_categorical_posterior(optim, loss, param_optimizer, param_loss, steps, verbose)
 
         else:
             discrete_params = self.inference_categorical_MAP()
 
         trained_params_dict = {i : params[i].detach().numpy() for i in params}
-
-        all_params =  {**trained_params_dict,**discrete_params}
+        if discrete_params is not None:
+            all_params =  {**trained_params_dict,**discrete_params}
+        else:
+            all_params = {**trained_params_dict}
 
         return all_params
 
@@ -203,6 +209,9 @@ class Interface:
                     Returns:
                       dict: parameter:value dictionary
         """
+
+        if 'assignments' not in self._model._params or self._model._params['assignments'] is not None:
+            return None
 
         guide_trace = poutine.trace(self._guide_trained).get_trace()  # record the globals
         trained_model = poutine.replay(self._model_trained, trace=guide_trace)  # replay the globals
@@ -235,7 +244,8 @@ class Interface:
                   dict: parameter:value dictionary
 
         """
-
+        if 'assignment' not in self._model._params or self._model._params['assignments'] is not None:
+            return None
 
         full_guide = self._model.full_guide(self._MAP)
         optim_discr = optim(param_optimizer)
@@ -247,12 +257,12 @@ class Interface:
         for i in range(steps):
             loss = svi2.step()
             if verbose:
-                print('{: >5d}\t{}'.format(i, loss / num_observations))
+                print('{: >5d}\t{}'.format(i, loss / num_observations), flush=True)
             else:
                 if (i+1) % 10 == 0:
-                    print('.', end='')
+                    print('.', end='', flush=True)
                 if (i+1) % 100 == 0:
-                    print("\n")
+                    print("\n", flush=True)
         assignment_probs = {'assignment_probs' : pyro.param('assignment_probs').detach()}
         return assignment_probs
 

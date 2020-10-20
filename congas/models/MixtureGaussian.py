@@ -6,7 +6,7 @@ from pyro.ops.indexing import Vindex
 from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
-
+from sklearn.cluster import KMeans
 
 
 
@@ -38,8 +38,8 @@ class MixtureGaussian(Model):
 
     """
 
-    params = {'K': 2, 'cnv_sd': 0.6, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
-              'mixture':  None}
+    params = {'K': 2, 'cnv_sd': 0.1, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
+              'mixture':  None, 'norm_init_factors': None, 'kmeans' : True, 'norm_factor' : None, 'assignments' : None}
     data_name = set(['data', 'mu', 'pld'])
 
     def __init__(self, data_dict):
@@ -51,50 +51,68 @@ class MixtureGaussian(Model):
     def model(self,*args, **kwargs):
         I, N = self._data['data'].shape
         batch = N if self._params['batch_size'] else self._params['batch_size']
-        weights = pyro.sample('mixture_weights', dist.Dirichlet(torch.ones(self._params['K'])))
+        if self._params['assignments'] is None:
+            weights = pyro.sample('mixture_weights', dist.Dirichlet(torch.ones(self._params['K'])))
 
         with pyro.plate('segments', I):
             with pyro.plate('components', self._params['K']):
                 cc = pyro.sample('cnv_probs', dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_sd']))
 
         with pyro.plate("data2", N, batch):
-            theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
+            if self._params['norm_factor'] is None:
+                theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
+            else:
+                theta = torch.tensor(self._params['norm_factor'])
 
         with pyro.plate('data', N, batch):
-
-            assignment = pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
-
+            if self._params['assignments'] is None:
+                assignment = pyro.sample('assignment', dist.Categorical(weights), infer={"enumerate": "parallel"})
+            else:
+                assignment = torch.tensor(self._params['assignments'])
 
             for i in pyro.plate('segments2', I):
-                pyro.sample('obs_{}'.format(i), dist.Poisson((Vindex(cc)[assignment,i] * theta * self._data['mu'][i])
-                                                             + 1e-8), obs=self._data['data'][i, :])
+                pyro.sample('obs_{}'.format(i), dist.Poisson(((Vindex(cc)[assignment,i] * theta * self._data['mu'][i])
+                                                             + 1e-8)), obs=self._data['data'][i, :])
 
     def guide(self,MAP = False,*args, **kwargs):
         if(MAP):
-            return AutoDelta(poutine.block(self.model, expose=['mixture_weights', 'norm_factor', 'cnv_probs']),
+            exposing = ['cnv_probs']
+
+            if self._params['assignments'] is None:
+                exposing.append('mixture_weights')
+            if self._params['norm_factor'] is None:
+                exposing.append('norm_factor')
+            return AutoDelta(poutine.block(self.model, expose=exposing),
                              init_loc_fn=self.init_fn())
         else:
             def guide_ret(*args, **kwargs):
                 I, N = self._data['data'].shape
                 batch = N if self._params['batch_size'] else self._params['batch_size']
 
-                param_weights = pyro.param("param_mixture_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
+                if self._params['assignments'] is None:
+                    param_weights = pyro.param("param_mixture_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
                                            constraint=constraints.simplex)
+
                 cnv_mean = pyro.param("param_cnv_probs", lambda: self.create_gaussian_init_values(),
                                          constraint=constraints.positive)
-                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones(1) * self._params['cnv_sd'],
+                cnv_var = pyro.param("param_cnv_var", lambda: torch.ones([self._params['K'], I]) * self._params['cnv_sd'],
                                       constraint=constraints.positive)
-                gamma_scale = pyro.param("param_norm_factor", lambda: torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0),
+                if self._params['norm_factor'] is None:
+                    gamma_scale = pyro.param("param_norm_factor", lambda: torch.mean(self._data['data'] /
+                                                                                 (self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0),
                                    constraint=constraints.positive)
 
-                pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
+                if self._params['assignments'] is None:
+                    pyro.sample('mixture_weights', dist.Dirichlet(param_weights))
 
                 with pyro.plate('segments', I):
                     with pyro.plate('components', self._params['K']):
                         pyro.sample('cnv_probs', dist.LogNormal(torch.log(cnv_mean), cnv_var))
 
                 with pyro.plate("data2", N, batch):
-                    pyro.sample('norm_factor', dist.Delta(gamma_scale))
+                    if self._params['norm_factor'] is None:
+                        pyro.sample('norm_factor', dist.Delta(gamma_scale))
+
 
 
             return guide_ret
@@ -103,11 +121,23 @@ class MixtureGaussian(Model):
     def create_gaussian_init_values(self):
         init = torch.zeros(self._params['K'], self._data['data'].shape[0])
         for i in range(len(self._data['pld'])):
-            for k in range(self._params['K']):
-                if k == 0:
-                    init[k, i] = torch.ceil(self._data['pld'][i])
+            if self._params['kmeans']:
+                if self._params['norm_init_factors'] is None:
+                    norm = torch.mean(self._data['data'] / (self._data['pld'].reshape(self._data['data'].shape[0],1) * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
+                    X = (self._data['data'][i,:].detach().numpy() / norm) / self._data["mu"][i]
                 else:
-                    init[k, i] = torch.floor(self._data['pld'][i])
+                    X = (self._data['data'][i,:] / self._params['norm_init_factors']) / self._data["mu"][i]
+                X = X.detach().numpy()
+                km = KMeans(n_clusters=self._params['K'], random_state=0).fit(X.reshape(-1,1))
+                centers = torch.tensor(km.cluster_centers_).flatten()
+                for k in range(self._params['K']):
+                    init[k, i] = centers[k]
+            else:
+                for k in range(self._params['K']):
+                    init[k, i] = dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_sd']).sample([self._params['K']])
+
+
+
         return init
 
     def full_guide(self, MAP = False , *args, **kwargs):
@@ -133,7 +163,11 @@ class MixtureGaussian(Model):
             if site["name"] == "mixture_weights":
                 return self._params['mixture']
             if site["name"] == "norm_factor":
-                return torch.mean(self._data['data'] / (2 * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
+                if self._params['norm_init_factors'] is None:
+                    return torch.mean(self._data['data'] /
+                                      (self._data['pld'].reshape(self._data['data'].shape[0],1) * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
+                else:
+                    return self._params['norm_init_factors']
             raise ValueError(site["name"])
         return init_function
 
