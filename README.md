@@ -1,8 +1,8 @@
 # Copy number genotyping from scRNA sequencing
 
 
-[![Build Status](https://travis-ci.org/Militeee/anneal.svg?branch=master)](https://travis-ci.org/Militeee/anneal)
-[![codecov](https://codecov.io/gh/Militeee/anneal/branch/master/graph/badge.svg)](https://codecov.io/gh/Militeee/anneal)
+[![Build Status](https://travis-ci.org/Militeee/anneal.svg?branch=master)](https://travis-ci.org/Militeee/congas)
+[![codecov](https://codecov.io/gh/Militeee/anneal/branch/master/graph/badge.svg)](https://codecov.io/gh/Militeee/congas)
 
 
 A set of Pyro models and functions to infer CNA from scRNA-seq data. 
