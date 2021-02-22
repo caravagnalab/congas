@@ -12,6 +12,8 @@ from pyro import poutine
 from pyro.optim import ClippedAdam
 import numpy as np
 import torch.nn.functional as F
+from tqdm import trange
+
 
 
 class Interface:
@@ -72,7 +74,7 @@ class Interface:
     def set_model_params(self, param_dict):
         self._model.set_params(param_dict)
 
-    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False, verbose = True, convergence_detection = False, epsilon = 0.01):
+    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False, convergence_detection = False, epsilon = 0.01):
 
         """ This function runs the inference of non-categorical parameters
 
@@ -113,21 +115,19 @@ class Interface:
         
         svi = self._inf_type(model, guide, optim, elbo)
         num_observations = self._model._data['data'].shape[1]
+        num_segments = self._model._data['data'].shape[0]
         loss = [None] * steps
-        print('Running {} on {} cells for {} steps'.format(
-           self._model_string, num_observations, steps), flush=True)
+        print('Running {} on {} cells wiht {} segments for {} steps'.format(
+           self._model_string, num_observations, num_segments,steps), flush=True)
+        t = trange(steps, desc='Bar desc', leave=True)
 
-        for step in range(steps):
+        for step in t:
             loss[step] = svi.step() / num_observations
+            elb = loss[step]
+            t.set_description('ELBO: {:.9f}  '.format(elb))
+            t.refresh()
 
-            if verbose:
-                print('{: >5d}\t{}'.format(step, loss[step]), flush=True)
-            else:
-                if (step+1) % 10 == 0:
-                    print('.' , end='', flush=True)
-                if (step+1) % 100 == 0:
-                    print("\n", flush=True)
-
+        print("", flush = True)
         self._model_trained = model
         self._guide_trained = guide
         self._loss_trained = loss
@@ -150,7 +150,7 @@ class Interface:
         res = {nms: pyro.param(nms) for nms in param_names}
         return res
 
-    def learned_parameters(self, posterior = False ,optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {"lr" : 0.05}, param_loss = None, steps = 200, verbose = False):
+    def learned_parameters(self, posterior = False ,optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {"lr" : 0.05}, param_loss = None, steps = 200):
 
         """ Return all the estimated  parameter values
 
@@ -179,10 +179,11 @@ class Interface:
 
         if posterior:
             print("Computing assignment probabilities", flush=True)
-            discrete_params = self.inference_categorical_posterior(optim, loss, param_optimizer, param_loss, steps, verbose)
+            discrete_params = self.inference_categorical_posterior(optim, loss, param_optimizer, param_loss, steps)
 
         else:
             discrete_params = self.inference_categorical_MAP()
+
 
         trained_params_dict = {i : params[i].detach().numpy() for i in params}
         if discrete_params is not None:
@@ -210,7 +211,7 @@ class Interface:
                       dict: parameter:value dictionary
         """
 
-        if 'assignments' not in self._model._params or self._model._params['assignments'] is not None:
+        if 'assignments' in self._model._params and self._model._params['assignments'] is not None:
             return None
 
         guide_trace = poutine.trace(self._guide_trained).get_trace()  # record the globals
@@ -232,7 +233,7 @@ class Interface:
             return {'assignement' : trace.nodes["assignment"]["value"].numpy()}
 
 
-    def inference_categorical_posterior(self, optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {'lr' : 0.01}, param_loss = None, steps = 300, verbose = False):
+    def inference_categorical_posterior(self, optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {'lr' : 0.01}, param_loss = None, steps = 300):
 
         """Learn assignment probabilities
 
@@ -244,7 +245,7 @@ class Interface:
                   dict: parameter:value dictionary
 
         """
-        if 'assignment' not in self._model._params or self._model._params['assignments'] is not None:
+        if 'assignments' in self._model._params and self._model._params['assignments'] is not None:
             return None
 
         full_guide = self._model.full_guide(self._MAP)
@@ -253,16 +254,12 @@ class Interface:
         num_observations = self._model._data['data'].shape[1]
 
         svi2 = SVI( self._model.model, full_guide, optim_discr, loss=elbo_discr)
-
-        for i in range(steps):
+        t = trange(steps, desc='ELBO', leave=True)
+        for i in t:
             loss = svi2.step()
-            if verbose:
-                print('{: >5d}\t{}'.format(i, loss / num_observations), flush=True)
-            else:
-                if (i+1) % 10 == 0:
-                    print('.', end='', flush=True)
-                if (i+1) % 100 == 0:
-                    print("\n", flush=True)
+            t.set_description('ELBO: {:.9f}  '.format(loss/num_observations))
+            t.refresh()
+        print("", flush=True)
         assignment_probs = {'assignment_probs' : pyro.param('assignment_probs').detach()}
         return assignment_probs
 

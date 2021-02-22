@@ -39,7 +39,7 @@ class MixtureGaussian(Model):
     """
 
     params = {'K': 2, 'cnv_sd': 0.1, 'theta_scale': 3, 'theta_rate': 1, 'batch_size': None,
-              'mixture':  None, 'norm_init_factors': None, 'kmeans' : True, 'norm_factor' : None, 'assignments' : None}
+              'mixture':  None, 'norm_init_factors': None, 'kmeans' : True, 'norm_factor' : None, 'assignments' : None, 'cnv_locs' : None}
     data_name = set(['data', 'mu', 'pld'])
 
     def __init__(self, data_dict):
@@ -58,11 +58,15 @@ class MixtureGaussian(Model):
             with pyro.plate('components', self._params['K']):
                 cc = pyro.sample('cnv_probs', dist.LogNormal(torch.log(self._data['pld']), self._params['cnv_sd']))
 
+
+
         with pyro.plate("data2", N, batch):
             if self._params['norm_factor'] is None:
                 theta = pyro.sample('norm_factor', dist.Gamma(self._params['theta_scale'], self._params['theta_rate']))
             else:
                 theta = torch.tensor(self._params['norm_factor'])
+
+        cc_norm = torch.sum(cc * self._data['mu'], dim=1) / torch.sum(self._data['mu'])
 
         with pyro.plate('data', N, batch):
             if self._params['assignments'] is None:
@@ -70,8 +74,10 @@ class MixtureGaussian(Model):
             else:
                 assignment = torch.tensor(self._params['assignments'])
 
+
+
             for i in pyro.plate('segments2', I):
-                pyro.sample('obs_{}'.format(i), dist.Poisson(((Vindex(cc)[assignment,i] * theta * self._data['mu'][i])
+                pyro.sample('obs_{}'.format(i), dist.Poisson(((Vindex(cc)[assignment,i] *  self._data['mu'][i] * theta) / (cc_norm[assignment])
                                                              + 1e-8)), obs=self._data['data'][i, :])
 
     def guide(self,MAP = False,*args, **kwargs):
@@ -93,8 +99,11 @@ class MixtureGaussian(Model):
                     param_weights = pyro.param("param_mixture_weights", lambda: torch.ones(self._params['K']) / self._params['K'],
                                            constraint=constraints.simplex)
 
-                cnv_mean = pyro.param("param_cnv_probs", lambda: self.create_gaussian_init_values(),
+                if self._params['cnv_locs'] is None:
+                    cnv_mean = pyro.param("param_cnv_probs", lambda: self.create_gaussian_init_values(),
                                          constraint=constraints.positive)
+                else:
+                    cnv_mean = self._params['cnv_locs']
                 cnv_var = pyro.param("param_cnv_var", lambda: torch.ones([self._params['K'], I]) * self._params['cnv_sd'],
                                       constraint=constraints.positive)
                 if self._params['norm_factor'] is None:
@@ -123,8 +132,11 @@ class MixtureGaussian(Model):
         for i in range(len(self._data['pld'])):
             if self._params['kmeans']:
                 if self._params['norm_init_factors'] is None:
-                    norm = torch.mean(self._data['data'] / (self._data['pld'].reshape(self._data['data'].shape[0],1) * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
-                    X = (self._data['data'][i,:].detach().numpy() / norm) / self._data["mu"][i]
+                    norm =torch.mean(self._data['data'] /
+                                      (self._data['pld'].reshape(self._data['data'].shape[0],1) *
+                                       self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) *\
+                           (torch.sum(self._data['pld'] * self._data['mu']) / torch.sum(self._data['mu']))
+                    X = (self._data['data'][i,:] * (torch.sum(self._data['pld'] * self._data['mu']) / torch.sum(self._data['mu']) / norm)) / self._data["mu"][i]
                 else:
                     X = (self._data['data'][i,:] / self._params['norm_init_factors']) / self._data["mu"][i]
                 X = X.detach().numpy()
@@ -165,7 +177,12 @@ class MixtureGaussian(Model):
             if site["name"] == "norm_factor":
                 if self._params['norm_init_factors'] is None:
                     return torch.mean(self._data['data'] /
-                                      (self._data['pld'].reshape(self._data['data'].shape[0],1) * self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0)
+                                      (self._data['pld'].reshape(self._data['data'].shape[0],1) *
+                                       self._data['mu'].reshape(self._data['data'].shape[0],1)), axis=0) *\
+                           (torch.sum(self._data['pld'] * self._data['mu']) / torch.sum(self._data['mu']))
+
+
+
                 else:
                     return self._params['norm_init_factors']
             raise ValueError(site["name"])
