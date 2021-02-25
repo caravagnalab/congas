@@ -150,7 +150,7 @@ class Interface:
         res = {nms: pyro.param(nms) for nms in param_names}
         return res
 
-    def learned_parameters(self, posterior = False ,optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {"lr" : 0.05}, param_loss = None, steps = 200):
+    def learned_parameters(self):
 
         """ Return all the estimated  parameter values
 
@@ -167,7 +167,7 @@ class Interface:
         """
 
 
-        if self._MAP and self._model_string is not 'MixtureCategorical':
+        if self._MAP:
             params = self._guide_trained()
             if "DMP" in self._model_string:
                 params['betas'] = params['mixture_weights'].clone().detach()
@@ -177,91 +177,16 @@ class Interface:
             params = self._get_params_no_autoguide()
 
 
-        if posterior:
-            print("Computing assignment probabilities", flush=True)
-            discrete_params = self.inference_categorical_posterior(optim, loss, param_optimizer, param_loss, steps)
+        print("Computing assignment probabilities", flush=True)
+        discrete_params = self._model.calculate_cluster_assignements(params)
 
-        else:
-            discrete_params = self.inference_categorical_MAP()
 
 
         trained_params_dict = {i : params[i].detach().numpy() for i in params}
-        if discrete_params is not None:
-            all_params =  {**trained_params_dict,**discrete_params}
-        else:
-            all_params = {**trained_params_dict}
+
+        all_params =  {**trained_params_dict,**discrete_params}
 
         return all_params
-
-
-
-    def inference_categorical_MAP(self):
-
-        """ Return all the estimated  parameter values
-
-                    Calls the right set of function for retrieving learned parameters according to the model type
-                    If posterior=True all the other parameters are just passed to :func:`~congas.Interface.Interface.inference_categorical_posterior`
-
-                    Args:
-
-                      posterior: learn posterior assignement (if false estimate MAP via Viterbi-like MAP inference)
-
-
-                    Returns:
-                      dict: parameter:value dictionary
-        """
-
-        if 'assignments' in self._model._params and self._model._params['assignments'] is not None:
-            return None
-
-        guide_trace = poutine.trace(self._guide_trained).get_trace()  # record the globals
-        trained_model = poutine.replay(self._model_trained, trace=guide_trace)  # replay the globals
-
-        # Recover the enumerated categorical variables
-
-        inferred_model = infer_discrete(trained_model, temperature=0, first_available_dim=-2)
-        trace = poutine.trace(inferred_model).get_trace()
-        if(self._Hmm):
-            zs = []
-            for i in range(self._model._data['segments']):
-                zs.append(trace.nodes["z_{}".format(i)]["value"].numpy())
-            if "simple" in self._model_string.lower() or "segmenter" in self._model_string.lower():
-                return {"z": np.asarray(zs)}
-            else:
-                return {'assignement' : trace.nodes["assignment"]["value"].numpy(),  "z" : np.asarray(zs)}
-        else:
-            return {'assignement' : trace.nodes["assignment"]["value"].numpy()}
-
-
-    def inference_categorical_posterior(self, optim = ClippedAdam, loss = TraceEnum_ELBO,param_optimizer = {'lr' : 0.01}, param_loss = None, steps = 300):
-
-        """Learn assignment probabilities
-
-        Basically it runs with the same parameters as :func:`~congas.core.Interface.run` but with a different guide
-        , where it learns just the posterior assignment probabilities.
-
-
-        Returns:
-                  dict: parameter:value dictionary
-
-        """
-        if 'assignments' in self._model._params and self._model._params['assignments'] is not None:
-            return None
-
-        full_guide = self._model.full_guide(self._MAP)
-        optim_discr = optim(param_optimizer)
-        elbo_discr = loss(param_loss) if param_loss is not None else loss()
-        num_observations = self._model._data['data'].shape[1]
-
-        svi2 = SVI( self._model.model, full_guide, optim_discr, loss=elbo_discr)
-        t = trange(steps, desc='ELBO', leave=True)
-        for i in t:
-            loss = svi2.step()
-            t.set_description('ELBO: {:.9f}  '.format(loss/num_observations))
-            t.refresh()
-        print("", flush=True)
-        assignment_probs = {'assignment_probs' : pyro.param('assignment_probs').detach()}
-        return assignment_probs
 
 
     def _mix_weights(self, beta):

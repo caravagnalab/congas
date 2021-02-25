@@ -53,7 +53,7 @@ ptyprocess==0.6.0
 pycparser==2.20
 Pygments==2.6.1
 pyparsing==2.4.7
-pyro-ppl==0.4.1
+pyro-ppl==1.5.2
 pyrsistent==0.16.0
 python-dateutil==2.8.1
 pytz==2020.1
@@ -75,7 +75,7 @@ sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.4
 terminado==0.8.3
 testpath==0.4.4
-torch==1.4.0
+torch==1.7.1
 tornado==6.0.4
 tqdm==4.46.0
 traitlets==4.3.3

@@ -7,6 +7,9 @@ from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
 from sklearn.cluster import KMeans
+from congas.utils import *
+
+
 
 
 
@@ -99,22 +102,6 @@ class MixtureGaussianNorm(Model):
                 init[k, i] = centers[k]
         return init
 
-    def full_guide(self, MAP = False , *args, **kwargs):
-        def full_guide_ret(*args, **kargs):
-            I, N = self._data['data'].shape
-            batch = N if self._params['batch_size'] else self._params['batch_size']
-
-            with poutine.block(hide_types=["param"]):  # Keep our learned values of global parameters.
-                self.guide(MAP)()
-            with pyro.plate('data', N, batch):
-                assignment_probs = pyro.param('assignment_probs', torch.ones(N, self._params['K']) / self._params['K'],
-                                              constraint=constraints.simplex)
-                pyro.sample('assignment', dist.Categorical(assignment_probs), infer={"enumerate": "parallel"})
-
-        return full_guide_ret
-
-
-
     def init_fn(self):
         def init_function(site):
             if site["name"] == "cnv_probs":
@@ -129,5 +116,27 @@ class MixtureGaussianNorm(Model):
             raise ValueError(site["name"])
         return init_function
 
+    def likelihood(self, inf_params):
+        lk = torch.zeros(self._params['K'], self._data['data'].shape[1], self._data['data'].shape[0])
+        if self._params['K'] == 1:
+            for i in range(self._data['data'].shape[0]):
+                lk[0, :, i] = torch.log(inf_params["mixture_weights"]) + dist.Normal(inf_params["cnv_probs"][0, i], inf_params["norm_sd"][i]).log_prob(
+                    self._data['data'][i, :])
+            return lk
+
+        for k in range(self._params['K']):
+            for i in range(self._data['data'].shape[0]):
+                lk[k, :, i] = dist.Normal(inf_params["cnv_probs"][k, i], inf_params["norm_sd"][i]).log_prob(
+                    self._data['data'][i, :])
+        return lk
+
+    def calculate_cluster_assignements(self,inf_params):
+        lk = self.likelihood(inf_params)
+        lk = torch.sum(lk,  dim=2) + torch.log(inf_params["mixture_weights"]).reshape([self._params['K'],1])
+
+        summed_lk = log_sum_exp(lk)
+        ret = lk - summed_lk
+        res = {"assignment_probs" : torch.exp(ret).detach().numpy()}
+        return res
 
 
