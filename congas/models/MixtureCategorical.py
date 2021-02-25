@@ -109,7 +109,8 @@ class MixtureCategorical(Model):
         return init
 
 
-    def likelihood(self, ):
+    def likelihood(self, segment_fact_marg, weights, theta):
+
 
 
 
