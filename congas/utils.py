@@ -27,7 +27,7 @@ def dict_to_tensor(dict):
         if not torch.is_tensor(v):
             dict[k] = torch.tensor(v)
 
-def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},MAP = True ,posteriors = False, seed = 3, step_post=300):
+def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},MAP = True, seed = 3):
 
     """ Run an entire analysis with the minimum amount of parameters
 
@@ -46,7 +46,6 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, i
         lr: learning rate
         param_dict: parameters for the model, look at the model documentation if you want to change them
         MAP: perform MAP over the last layer of random variable in the model or learn the parameters of the distribution
-        posteriors: posterior assignments or Viterbi-like MAP estimates
         seed: seed for pyro.set_rng_seed
         step_post: steps if learning also posterior probabilities
 
@@ -66,7 +65,7 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, i
     interface.set_model_params(param_dict)
 
     loss = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr}, MAP = MAP)
-    parameters = interface.learned_parameters(posterior=posteriors,  steps=step_post)
+    parameters = interface.learned_parameters()
 
     return parameters, loss
 
@@ -122,3 +121,7 @@ def write_results(params, prefix, new_dir = False, dir_pref = None):
 
     for i in params:
             np.savetxt(out_prefix + i + ".txt", params[i], delimiter="\t")
+
+def log_sum_exp(args):
+    c = torch.amax(args, dim=0)
+    return c + torch.log(torch.sum(torch.exp(args - c), axis=0))

@@ -7,6 +7,7 @@ from pyro import poutine
 from pyro.infer.autoguide import AutoDelta
 from torch.distributions import constraints
 from sklearn.cluster import KMeans
+from congas.utils import *
 
 
 
@@ -188,5 +189,31 @@ class MixtureGaussian(Model):
             raise ValueError(site["name"])
         return init_function
 
+
+    def likelihood(self, inf_params):
+        lk = torch.zeros(self._params['K'], self._data['data'].shape[1], self._data['data'].shape[0])
+        if self._params['K'] == 1:
+            norm_f = torch.sum(inf_params["cnv_probs"] * self._data['mu']) / torch.sum(self._data['mu'])
+            for i in range(self._data['data'].shape[0]):
+                lamb = (inf_params["cnv_probs"][0,i] * self._data['mu'][i] * inf_params["norm_factor"]) / norm_f
+                lk[0, :, i] = torch.log(inf_params["mixture_weights"]) + dist.Poisson(lamb).log_prob(
+                    self._data['data'][i, :])
+            return lk
+
+        for k in range(self._params['K']):
+            norm_f = torch.sum(inf_params["cnv_probs"][k, :] * self._data['mu']) / torch.sum(self._data['mu'])
+            for i in range(self._data['data'].shape[0]):
+                lamb = (inf_params["cnv_probs"][k, i] * self._data['mu'][i] * inf_params["norm_factor"]) / norm_f
+                lk[k, :, i] =  dist.Poisson(lamb).log_prob(self._data['data'][i,:])
+        return lk
+
+    def calculate_cluster_assignements(self,inf_params):
+        lk = self.likelihood(inf_params)
+        lk = torch.sum(lk,  dim=2) + torch.log(inf_params["mixture_weights"]).reshape([self._params['K'],1])
+
+        summed_lk = log_sum_exp(lk)
+        ret = lk - summed_lk
+        res = {"assignment_probs" : torch.exp(ret).detach().numpy()}
+        return res
 
 
