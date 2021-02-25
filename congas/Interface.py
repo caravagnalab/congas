@@ -29,7 +29,7 @@ class Interface:
         self._optimizer = optimizer
         self._loss = loss
         self._model = None
-        self._inf_type = SVI
+        self._inf_type = inf_type
         self._model_trained = None
         self._guide_trained = None
         self._loss_trained = None
@@ -74,7 +74,7 @@ class Interface:
     def set_model_params(self, param_dict):
         self._model.set_params(param_dict)
 
-    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False, convergence_detection = False, epsilon = 0.01):
+    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False):
 
         """ This function runs the inference of non-categorical parameters
 
