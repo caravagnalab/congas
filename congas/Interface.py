@@ -110,12 +110,14 @@ class Interface:
         # Hmm have special parameters
         if "hmm" in self._model_string.lower():
             self._Hmm = True
+
         optim = self._optimizer(param_optimizer)
         elbo = self._loss(**param_loss) if param_loss is not None else self._loss()
-        
         svi = self._inf_type(model, guide, optim, elbo)
+
         num_observations = self._model._data['data'].shape[1]
         num_segments = self._model._data['data'].shape[0]
+
         loss = [None] * steps
         print('Running {} on {} cells wiht {} segments for {} steps'.format(
            self._model_string, num_observations, num_segments,steps), flush=True)

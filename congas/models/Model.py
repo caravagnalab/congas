@@ -33,7 +33,3 @@ class Model(ABC):
         if 'mixture' in self._params and self._params['mixture'] is None:
             self._params['mixture'] = 1 / (torch.ones(self._params['K']) * self._params['K'])
 
-
-    def BIC(self):
-
-        pass
