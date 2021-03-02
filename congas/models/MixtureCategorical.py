@@ -7,7 +7,7 @@ from pyro.infer.autoguide import AutoDelta
 import numpy as np
 from congas.models.Model import Model
 from torch.distributions import constraints
-from congas.utils import log_sum_exp
+from congas.utils import log_sum_exp, entropy
 
 
 class MixtureCategorical(Model):
@@ -51,7 +51,7 @@ class MixtureCategorical(Model):
             # p(z_i| D, X ) = lk(z_i) * p(z_i | X) / sum_z_i(lk(z_i) * p(z_i | X))
             # log(p(z_i| D, X )) = log(lk(z_i)) + log(p(z_i | X)) - log_sum_exp(log(lk(z_i)) + log(p(z_i | X)))
 
-            pyro.factor("lk", self.final_likelihood(segment_fact_marg, weights, sizes))
+            pyro.factor("lk", self.final_likelihood(segment_fact_marg, weights, sizes) - entropy(cc))
 
     def guide(self, *args, **kwargs):
         return AutoDelta(poutine.block(self.model, expose=["NB_size", "mixture_weights",
@@ -75,7 +75,7 @@ class MixtureCategorical(Model):
 
     def create_dirichlet_init_values(self):
 
-        bins = self._params['hidden_dim'] * 5
+        bins = self._params['hidden_dim'] * 6
         low_prob = 1 / bins
         high_prob = 1 - (low_prob * (self._params['hidden_dim'] - 1))
 

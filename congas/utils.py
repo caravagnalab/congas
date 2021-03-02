@@ -125,3 +125,13 @@ def write_results(params, prefix, new_dir = False, dir_pref = None):
 def log_sum_exp(args):
     c = torch.amax(args, dim=0)
     return c + torch.log(torch.sum(torch.exp(args - c), axis=0))
+
+def entropy(x):
+    entr = torch.zeros([x.shape[0], x.shape[1]])
+    for k in range(x.shape[0]):
+        for i in range(x.shape[1]):
+            for h in range(x.shape[2]):
+                entr[k,i] += x[k,i,h] + torch.log(x[k,i,h])
+    return entr.sum()
+
+
