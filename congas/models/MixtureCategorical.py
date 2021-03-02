@@ -7,7 +7,7 @@ from pyro.infer.autoguide import AutoDelta
 import numpy as np
 from congas.models.Model import Model
 from torch.distributions import constraints
-from congas.utils import log_sum_exp
+from congas.utils import log_sum_exp, entropy
 
 
 class MixtureCategorical(Model):
@@ -45,13 +45,12 @@ class MixtureCategorical(Model):
 
             segment_fact_cat = torch.matmul(segment_factor.reshape([I, 1]),
                                             cat_vector.reshape([1, self._params['hidden_dim']]))
-            segment_fact_marg = segment_fact_cat * cc
-            segment_fact_marg = torch.sum(segment_fact_marg, dim=-1)
+            segment_fact_marg = segment_fact_cat
 
             # p(z_i| D, X ) = lk(z_i) * p(z_i | X) / sum_z_i(lk(z_i) * p(z_i | X))
             # log(p(z_i| D, X )) = log(lk(z_i)) + log(p(z_i | X)) - log_sum_exp(log(lk(z_i)) + log(p(z_i | X)))
 
-            pyro.factor("lk", self.final_likelihood(segment_fact_marg, weights, sizes))
+            pyro.factor("lk", self.final_likelihood(segment_fact_marg, weights, sizes, cc) - entropy(cc) * N)
 
     def guide(self, *args, **kwargs):
         return AutoDelta(poutine.block(self.model, expose=["NB_size", "mixture_weights",
@@ -91,28 +90,30 @@ class MixtureCategorical(Model):
 
         return init
 
-    def likelihood_model(self, segment_fact_marg, weights, size):
-        lk = torch.zeros(self._params['K'], self._data['data'].shape[1], self._data['data'].shape[0])
+    def likelihood_model(self, segment_fact_marg, weights, size,probs_cnv):
+        lk = torch.zeros(self._params['hidden_dim'], self._params['K'], self._data['data'].shape[1], self._data['data'].shape[0])
         if self._params['K'] == 1:
             #norm_f = torch.sum(segment_fact_marg)
             for i in range(self._data['data'].shape[0]):
-                mean = (segment_fact_marg[0, i] * self._data['norm_factor']) #/ norm_f
-                lk[0, :, i] = torch.log(weights) + dist.NegativeBinomial(probs = size[i] / (mean + size[i]), total_count = size[i]).log_prob(
-                    self._data['data'][i, :])
+                for h in range(self._params['hidden_dim']):
+                    mean = (segment_fact_marg[i, h] * self._data['norm_factor']) #/ norm_f
+                    lk[h, 0, :, i] = dist.NegativeBinomial(probs=mean / (mean + size[i]), total_count=size[i]).log_prob(
+                    self._data['data'][i, :]) + torch.log(probs_cnv[0,i,h])
             return lk
 
         for k in range(self._params['K']):
             #norm_f = torch.sum(segment_fact_marg[k,:])
             for i in range(self._data['data'].shape[0]):
-                mean = (segment_fact_marg[k, i] * self._data['norm_factor'])# / norm_f
-                lk[k, :, i] = dist.NegativeBinomial(probs = mean / (mean + size[i]), total_count = size[i]).log_prob(
-                    self._data['data'][i, :])
+                for h in range(self._params['hidden_dim']):
+                    mean = (segment_fact_marg[i, h] * self._data['norm_factor'])# / norm_f
+                    lk[h, k, :, i] = dist.NegativeBinomial(probs = mean / (mean + size[i]), total_count = size[i]).log_prob(
+                        self._data['data'][i, :]) + torch.log(probs_cnv[k,i,h])
 
-        return lk
+        return log_sum_exp(lk)
 
-    def final_likelihood(self, segment_fact_marg, weights, size):
+    def final_likelihood(self, segment_fact_marg, weights, size, probs_cnv) :
 
-        lk = self.likelihood_model(segment_fact_marg, weights, size)
+        lk = self.likelihood_model(segment_fact_marg, weights, size, probs_cnv)
         lk = torch.sum(lk, dim=2) + torch.log(weights).reshape([self._params['K'], 1])
         summed_lk = log_sum_exp(lk)
         return summed_lk.sum()
@@ -123,10 +124,8 @@ class MixtureCategorical(Model):
         segment_fact = torch.matmul(inf_params["segment_factor"].reshape([I, 1]),
                                     cat_vector.reshape([1, self._params['hidden_dim']]))
 
-        segment_fact_marg = segment_fact * inf_params["CNV_probabilities"]
-        segment_fact_marg = torch.sum(segment_fact_marg, dim=-1)
 
-        lk = self.likelihood_model(segment_fact_marg, inf_params["mixture_weights"], inf_params["NB_size"])
+        lk = self.likelihood_model(segment_fact, inf_params["mixture_weights"], inf_params["NB_size"], inf_params["CNV_probabilities"])
         return lk
 
     def calculate_cluster_assignements(self, inf_params):
