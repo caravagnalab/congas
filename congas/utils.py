@@ -134,4 +134,3 @@ def entropy(x):
                 entr[k,i] += x[k,i,h] + torch.log(x[k,i,h])
     return entr.sum()
 
-

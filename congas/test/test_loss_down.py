@@ -1,6 +1,6 @@
 import unittest
 import congas.utils
-from congas.models import HmmMixtureRNA, MixtureDirichlet, MixtureGaussianDMP, MixtureGaussian, HmmSimple
+from congas.models import MixtureGaussian
 import os
 
 LR = 0.05
