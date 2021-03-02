@@ -10,7 +10,7 @@ from torch.distributions import constraints
 from congas.utils import log_sum_exp, entropy
 
 
-class MixtureCategorical(Model):
+class MixtureCategorical2(Model):
     params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.2, 0.3, 0.3, 0.1, 0.1]), 'hidden_dim': 5,
               'theta_scale': None, 'theta_rate': None, 'batch_size': None,
               'mixture': None, 'gamma_multiplier': 4, "nb_size_init": None, "binom_prior_limits" : [0.01,10000]}

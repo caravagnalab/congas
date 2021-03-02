@@ -5,11 +5,11 @@ from congas.models.MixtureGaussian import MixtureGaussian
 from congas.models.HmmMixtureRNA import HmmMixtureRNA
 from congas.models.MixtureGaussianNorm import MixtureGaussianNorm
 from congas.models.HmmSegmenter import HmmSegmenter
-from congas.models.MixtureCategorical import MixtureCategorical
+from congas.models.MixtureCategorical2 import MixtureCategorical2
 from congas.models.MixtureGaussianOld import MixtureGaussianOld
 
 
 
 
 __all__ = ["HmmSimple", "MixtureGaussian", "MixtureGaussianDMP", "MixtureDirichlet",
-           "HmmMixtureRNA", "MixtureGaussianNorm", "HmmSegmenter", "MixtureCategorical", "MixtureGaussianOld"]
+           "HmmMixtureRNA", "MixtureGaussianNorm", "HmmSegmenter", "MixtureCategorical2", "MixtureGaussianOld"]
