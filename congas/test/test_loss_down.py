@@ -18,9 +18,6 @@ class LossTest(unittest.TestCase):
         params, loss = congas.utils.run_analysis(data_dict, MixtureGaussian, steps=ST, lr=LR)
         self.assertNotEqual(loss[1], loss[0])
 
-        params, loss = congas.utils.run_analysis(data_dict, MixtureGaussian, steps=ST, lr=LR, MAP=False)
-        self.assertNotEqual(loss[1], loss[0])
-
 
 
     #def test_GaussianMixtureDPM(self):
