@@ -13,7 +13,7 @@ from congas.utils import log_sum_exp, entropy
 class MixtureCategorical2(Model):
     params = {'K': 2, 'cnv_mean': 2, 'probs': torch.tensor([0.2, 0.3, 0.3, 0.1, 0.1]), 'hidden_dim': 5,
               'theta_scale': None, 'theta_rate': None, 'batch_size': None,
-              'mixture': None, 'gamma_multiplier': 4, "nb_size_init": None, "binom_prior_limits" : [0.01,10000]}
+              'mixture': None, "nb_size_init": None, "binom_prior_limits" : [0.01,10000]}
     data_name = set(['data', 'mu', 'pld', 'segments', 'norm_factor'])
 
     def __init__(self, data_dict):
@@ -50,7 +50,7 @@ class MixtureCategorical2(Model):
             # p(z_i| D, X ) = lk(z_i) * p(z_i | X) / sum_z_i(lk(z_i) * p(z_i | X))
             # log(p(z_i| D, X )) = log(lk(z_i)) + log(p(z_i | X)) - log_sum_exp(log(lk(z_i)) + log(p(z_i | X)))
 
-            pyro.factor("lk", self.final_likelihood(segment_fact_marg, weights, sizes) - entropy(cc))
+            pyro.factor("lk", self.final_likelihood(segment_fact_marg, weights, sizes, cc) - entropy(cc))
 
 
     def guide(self, *args, **kwargs):
@@ -74,12 +74,14 @@ class MixtureCategorical2(Model):
         return init_function
 
     def create_dirichlet_init_values(self):
+        I, N = self._data['data'].shape
+
 
         bins = self._params['hidden_dim'] * 6
         low_prob = 1 / bins
         high_prob = 1 - (low_prob * (self._params['hidden_dim'] - 1))
 
-        init = torch.zeros(self._params['K'], self._data['segments'], self._params['hidden_dim'])
+        init = torch.zeros(self._params['K'], I, self._params['hidden_dim'])
 
         for i in range(len(self._data['pld'])):
             for j in range(self._params['hidden_dim']):
