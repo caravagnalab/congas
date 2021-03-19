@@ -7,10 +7,10 @@ A set of utils function to run automatically an enetire inference cycle, plottin
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from congas.Interface import Interface
+from congas.Interface import *
 import numpy as np
 from pyro.optim import ClippedAdam
-from pyro.infer import SVI, TraceEnum_ELBO
+from pyro.infer import SVI, TraceGraph_ELBO
 import torch
 
 def plot_loss(loss, save = False, output = "run1"):
@@ -27,7 +27,7 @@ def dict_to_tensor(dict):
         if not torch.is_tensor(v):
             dict[k] = torch.tensor(v)
 
-def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},MAP = True, seed = 3):
+def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceGraph_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},seed = 3):
 
     """ Run an entire analysis with the minimum amount of parameters
 
@@ -64,7 +64,7 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceEnum_ELBO, i
     interface.initialize_model(data_dict)
     interface.set_model_params(param_dict)
 
-    loss = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr}, MAP = MAP)
+    loss = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr})
     parameters = interface.learned_parameters()
 
     return parameters, loss
@@ -88,9 +88,9 @@ def load_simulation_seg(dir, prefix):
     data = torch.tensor(data.values, dtype=torch.float32).t()
     segments, num_observations = data.shape
     ploidy = torch.tensor(cnv["ploidy_real"], dtype=torch.float32)
-    mu = torch.tensor(cnv["mu"])
+    nf = data.sum(dim = 0)
 
-    return {"data" : data, "pld" : ploidy, "segments": segments,"mu" : mu}
+    return {"data_rna" : data, "pld" : ploidy, "segments": segments, "norm_factor_rna" : nf}
 
 
 

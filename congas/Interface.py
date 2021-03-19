@@ -6,13 +6,14 @@ The core of the package just provides class with functions to make every model b
 
 
 
-from pyro.infer import SVI, infer_discrete, TraceEnum_ELBO
+from pyro.infer import SVI, infer_discrete, TraceEnum_ELBO, TraceGraph_ELBO
 import pyro
 from pyro import poutine
 from pyro.optim import ClippedAdam
 import numpy as np
 import torch.nn.functional as F
 from tqdm import trange
+from congas.building_blocks import *
 
 
 
@@ -34,8 +35,6 @@ class Interface:
         self._guide_trained = None
         self._loss_trained = None
         self._model_string = None
-        self._MAP = False
-        self._Hmm = False
 
 
     def __repr__(self):
@@ -74,7 +73,7 @@ class Interface:
     def set_model_params(self, param_dict):
         self._model.set_params(param_dict)
 
-    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3, MAP = False):
+    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3):
 
         """ This function runs the inference of non-categorical parameters
 
@@ -104,23 +103,35 @@ class Interface:
 
         pyro.set_rng_seed(seed)
         pyro.clear_param_store()
+
+        expose_vec = export_switch(self._model)
         model = self._model.model
-        guide = self._model.guide(MAP)
-        self._MAP = MAP
-        # Hmm have special parameters
-        if "hmm" in self._model_string.lower():
-            self._Hmm = True
+        guide = self._model.guide(expose_vec)
+
 
         optim = self._optimizer(param_optimizer)
         elbo = self._loss(**param_loss) if param_loss is not None else self._loss()
         svi = self._inf_type(model, guide, optim, elbo)
 
-        num_observations = self._model._data['data'].shape[1]
-        num_segments = self._model._data['data'].shape[0]
+        num_observations = 0
+        num_segments = 0
+        modali = 0
+
+        if "data_rna" in self._model._data:
+            num_observations += self._model._data['data_rna'].shape[1]
+            num_segments += self._model._data['data_rna'].shape[0]
+            modali += 1
+
+        if "data_atac" in self._model._data:
+            num_observations += self._model._data['data_atac'].shape[1]
+            num_segments += self._model._data['data_atac'].shape[0]
+            modali += 1
 
         loss = [None] * steps
-        print('Running {} on {} cells wiht {} segments for {} steps'.format(
-           self._model_string, num_observations, num_segments,steps), flush=True)
+
+        print('Running {} on {} cells with {} segments for {} steps and {} modalities'.format(
+           self._model_string, num_observations, num_segments,steps, modali), flush=True)
+
         t = trange(steps, desc='Bar desc', leave=True)
 
         for step in t:
@@ -136,21 +147,6 @@ class Interface:
         print("Done!", flush=True)
         return loss
 
-
-
-
-
-    def _get_params_no_autoguide(self):
-
-        """ Return the parameters that are not enumerated when we do full inference
-
-            Returns:
-              dict: parameter:value dictionary
-        """
-
-        param_names = pyro.get_param_store().match("param")
-        res = {nms: pyro.param(nms) for nms in param_names}
-        return res
 
     def learned_parameters(self):
 
@@ -169,20 +165,10 @@ class Interface:
         """
 
 
-        if self._MAP:
-            params = self._guide_trained()
-            if "DMP" in self._model_string:
-                params['betas'] = params['mixture_weights'].clone().detach()
-                params['mixture_weights'] = self._mix_weights(params['mixture_weights'])
-
-        else:
-            params = self._get_params_no_autoguide()
-
+        params = self._guide_trained()
 
         print("Computing assignment probabilities", flush=True)
         discrete_params = self._model.calculate_cluster_assignements(params)
-
-
 
         trained_params_dict = {i : params[i].detach().numpy() for i in params}
 
@@ -190,24 +176,6 @@ class Interface:
 
         return all_params
 
-
-    def _mix_weights(self, beta):
-        """ Get mixture wheights form beta samples
-
-        When using a stick-breaking process, transform the beta samples in effective mixture weights
-
-        Args:
-
-            beta: beta  from the stick-breaking process
-
-        Returns:
-            mixture_weights:
-
-        """
-
-        beta1m_cumprod = (1 - beta).cumprod(-1)
-        mixture_weights = F.pad(beta, (0, 1), value=1) * F.pad(beta1m_cumprod, (1, 0), value=1)
-        return mixture_weights
 
 
 
