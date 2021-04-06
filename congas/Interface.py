@@ -6,15 +6,12 @@ The core of the package just provides class with functions to make every model b
 
 
 
-from pyro.infer import SVI, infer_discrete, TraceEnum_ELBO, TraceGraph_ELBO
 import pyro
-from pyro import poutine
-from pyro.optim import ClippedAdam
-import numpy as np
-import torch.nn.functional as F
+from pyro.infer import SVI
 from tqdm import trange
-from congas.building_blocks import *
 
+from congas.building_blocks import *
+from congas.model_selection import *
 
 
 class Interface:
@@ -135,7 +132,7 @@ class Interface:
         t = trange(steps, desc='Bar desc', leave=True)
 
         for step in t:
-            loss[step] = svi.step() / num_observations
+            loss[step] = svi.step(i = step + 1) / (num_observations * num_segments)
             elb = loss[step]
             t.set_description('ELBO: {:.9f}  '.format(elb))
             t.refresh()
@@ -145,7 +142,7 @@ class Interface:
         self._guide_trained = guide
         self._loss_trained = loss
         print("Done!", flush=True)
-        return loss
+        return loss, num_observations
 
 
     def learned_parameters(self):
@@ -167,14 +164,76 @@ class Interface:
 
         params = self._guide_trained()
 
+        if "data_rna" in self._model._data:
+            if self._model._params["likelihood_rna"]  in ["G", "N"]:
+                params["segment_factor_rna"] = torch.ones(self._model._data['data_rna'].shape[0])
+
+        if "data_atac" in self._model._data:
+            if self._model._params["likelihood_atac"]  in ["G", "N"]:
+                params["segment_factor_atac"] = torch.ones(self._model._data['data_atac'].shape[0])
+
+        params["CNA"] = torch.argmax(params["CNV_probabilities"] , axis=(2)) + 1
+        
+        print("", flush=True)
+
         print("Computing assignment probabilities", flush=True)
         discrete_params = self._model.calculate_cluster_assignements(params)
 
         trained_params_dict = {i : params[i].detach().numpy() for i in params}
+        discrete_params = {i : discrete_params[i].detach().numpy() for i in discrete_params}
 
         all_params =  {**trained_params_dict,**discrete_params}
 
         return all_params
+
+
+    def calculate_ICs(self):
+
+        params = self._guide_trained()
+
+        if "data_rna" in self._model._data:
+            if self._model._params["likelihood_rna"] in ["G", "N"]:
+                params["segment_factor_rna"] = torch.ones(self._model._data['data_rna'].shape[0])
+
+        if "data_atac" in self._model._data:
+            if self._model._params["likelihood_atac"] in ["G", "N"]:
+                params["segment_factor_atac"] = torch.ones(self._model._data['data_atac'].shape[0])
+
+        print("Computing information criteria.", flush=True)
+
+        ca = self._model.calculate_cluster_assignements(params)
+
+        n_params = calculate_number_of_params(params)
+
+        N = 0
+        entropy_rna = 0
+        lk_rna = 0
+        if "data_rna" in self._model._data :
+            N += self._model._data['data_rna'].shape[1]
+            lk_rna = self._model.likelihood(params, "rna",sum = True)
+            entropy_rna = calc_entropy(ca["assignment_probs_rna"])
+
+        lk_atac = 0
+        entropy_atac = 0
+        if "data_atac" in self._model._data:
+            N +=  self._model._data['data_atac'].shape[1]
+            lk_atac = self._model.likelihood(params, "atac",sum = True)
+            entropy_atac = calc_entropy(ca["assignment_probs_atac"])
+
+        lk = self._model._params["lambda"] * lk_rna + (1 - self._model._params["lambda"]) * lk_atac
+
+        AIC = calc_AIC(lk, n_params)
+        BIC = calc_BIC(lk, n_params, N)
+        entropy = self._model._params["lambda"] * entropy_rna + (1- self._model._params["lambda"]) * entropy_atac
+        ICL = calc_ICL(lk, n_params, N, entropy)
+
+        ret = {"NLL" : -lk.detach().numpy(), "AIC" : AIC.detach().numpy(),
+               "BIC" : BIC.detach().numpy(), "ICL" : ICL.detach().numpy(),
+               "entropy" : entropy.detach().numpy(),
+               "n_params" : n_params, "n_observations" : N}
+
+        return ret
+
 
 
 

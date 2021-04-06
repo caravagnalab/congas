@@ -8,7 +8,10 @@ A set of Pyro models and an interface for simultaneous CNV clustering and infere
 
 from congas.Interface import Interface
 from congas.utils import *
+from congas.model_selection import *
 import os
+
+
 
 location = os.path.dirname(os.path.realpath(__file__))
 my_file = os.path.join(location, 'data')

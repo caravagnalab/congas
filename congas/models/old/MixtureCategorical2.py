@@ -43,6 +43,8 @@ class MixtureCategorical2(Model):
         with pyro.plate('data', N, batch):
             # p(x|z_i) = Poisson(marg(cc * theta * segment_factor))
 
+
+
             segment_fact_cat = torch.matmul(segment_factor.reshape([I, 1]),
                                             cat_vector.reshape([1, self._params['hidden_dim']]))
             segment_fact_marg = segment_fact_cat

@@ -64,8 +64,9 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceGraph_ELBO, 
     interface.initialize_model(data_dict)
     interface.set_model_params(param_dict)
 
-    loss = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr})
+    loss,N = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr})
     parameters = interface.learned_parameters()
+
 
     return parameters, loss
 
@@ -126,11 +127,13 @@ def log_sum_exp(args):
     c = torch.amax(args, dim=0)
     return c + torch.log(torch.sum(torch.exp(args - c), axis=0))
 
-def entropy(x):
-    entr = torch.zeros([x.shape[0], x.shape[1]])
-    for k in range(x.shape[0]):
-        for i in range(x.shape[1]):
-            for h in range(x.shape[2]):
-                entr[k,i] += x[k,i,h] + torch.log(x[k,i,h])
+
+def entropy_mixture(x):
+
+    entr = torch.sum(x + torch.log(x + 1e-10), dim = 0)
     return entr.sum()
 
+
+def entropy_per_segment(x):
+    entr = torch.sum(x + torch.log(x + 1e-10), dim=0)
+    return entr.sum()

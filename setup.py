@@ -5,13 +5,13 @@ def readme():
         return f.read()
 
 setup(name='congas',
-      version='0.0.43',
+      version='0.0.72',
       description='Copy Number genotyping from single cell RNA sequencing',
       url='https://github.com/Militeee/congas',
       author='Salvatore Milite',
       author_email='militesalvatore@gmail.com',
       license='GPL-3.0',
-      packages=['congas', 'congas.models'],
+      packages=['congas', 'congas.models', 'congas.building_blocks'],
       install_requires=[
             'matplotlib>=3.1',
             'pandas>=1.0',
