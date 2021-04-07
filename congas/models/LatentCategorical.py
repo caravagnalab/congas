@@ -111,12 +111,13 @@ class LatentCategorical(Model):
 
         lk_rna = 0
         entropy_per_segments_rna = 0
+        penalty_per_segments_rna = 0
+
         if 'data_rna' in self._data:
 
             with pyro.plate('data_rna', N, batch1):
                 # p(x|z_i) = Poisson(marg(cc * theta * segment_factor))
 
-                penalty_per_segments_rna = 0
 
                 if self._params["latent_type"] == "M":
 
@@ -167,12 +168,13 @@ class LatentCategorical(Model):
         lk_atac = 0
         entropy_per_segments_atac = 0
 
+        penalty_per_segments_atac = 0
+
         if 'data_atac' in self._data:
 
             with pyro.plate('data_atac', M, batch2):
                 # p(x|z_i) = Poisson(marg(cc * theta * segment_factor))
 
-                penalty_per_segments_atac = 0
                 if self._params["latent_type"] == "M":
 
                     if self._params["likelihood_atac"] == "NB":

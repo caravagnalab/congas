@@ -18,7 +18,6 @@ def export_switch(x):
             export.append("norm_sd_atac")
         else:
             export.append("segment_factor_atac")
-    if x._params["latent_type"] == "B":
-        export.append("cc_argmax")
+
 
     return export
