@@ -23,10 +23,10 @@ def gaussian_likelihood_aux2(x,segment_fact, cna_probs, cat_vector, sd, mod = "r
 
     H = x._params['hidden_dim']
 
-    mean = (segment_fact.reshape([1, 1, I, 1]) * cat_vector.reshape([H,1,1,1]) * x._data['norm_factor_{}'.format(mod)].reshape([1,1,1, N]))  # / norm_f
+    mean = (segment_fact.reshape([1, 1, I, -1]) * cat_vector.reshape([H,1,1,1]) * x._data['norm_factor_{}'.format(mod)].reshape([1,1,1, N]))  # / norm_f
 
     lk = dist.Normal(mean,
-                               sd.reshape([1,1,I,1])).log_prob(
+                               sd.reshape([1,1,I,-1])).log_prob(
         x._data['data_{}'.format(mod)].repeat([H,K, 1, 1]))
 
     lk += torch.log(cna_probs.reshape([H,K,I,1]))
@@ -36,12 +36,12 @@ def gaussian_likelihood_aux2(x,segment_fact, cna_probs, cat_vector, sd, mod = "r
 
 def gaussian_likelihood(x, segment_fact_marg, weights, sd, mod = "rna"):
     lk = gaussian_likelihood_aux(x, segment_fact_marg, sd, mod)
-    lk = lk + torch.log(weights).reshape([x._params['K'], 1, 1])
+    lk =  lk.sum(dim = 1) + torch.log(weights).reshape([x._params['K'], 1])
     summed_lk = log_sum_exp(lk)
     return summed_lk.sum()
 
 def gaussian_likelihood2(x, segment_fact, cna_probs, cat_vector,weights, sd, mod = "rna"):
     lk = gaussian_likelihood_aux2(x, segment_fact, cna_probs, cat_vector, sd, mod )
-    lk = lk + torch.log(weights).reshape([x._params['K'], 1, 1])
+    lk =  lk.sum(dim = 1) + torch.log(weights).reshape([x._params['K'], 1])
     summed_lk = log_sum_exp(lk)
     return summed_lk.sum()

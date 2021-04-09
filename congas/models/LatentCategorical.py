@@ -19,7 +19,7 @@ class LatentCategorical(Model):
               'theta_shape_rna': None, 'theta_rate_rna': None,'theta_shape_atac': None, 'theta_rate_atac': None,
               'batch_size': None, "init_probs" : 5, 'norm_init_sd_rna' : None, "norm_init_sd_atac" : None,
               'mixture': None, "nb_size_init_atac": None,"nb_size_init_rna": None, "binom_prior_limits" : [10,10000],
-              "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 1, "latent_type" : "D", "Temperature" : 1/100}
+              "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 1, "latent_type" : "D", "Temperature" : 1/100, "equal_sizes_sd" : True}
 
     data_name = set(['data_rna', 'data_atac', 'pld', 'segments', 'norm_factor_rna', 'norm_factor_atac'])
 
@@ -58,14 +58,14 @@ class LatentCategorical(Model):
 
             ### RNA segment dependent factors ###
             if 'data_rna' in self._data:
-                if self._params["likelihood_rna"] == "NB":
+                if self._params["likelihood_rna"] == "NB" and self._params["equal_sizes_sd"]:
                     #size_r
                     sizes_rna = pyro.sample("NB_size_rna", dist.Uniform(self._params['binom_prior_limits'][0],
                                                                 self._params['binom_prior_limits'][1]))
 
 
 
-                if self._params["likelihood_rna"] in ["N", "G"]:
+                if self._params["likelihood_rna"] in ["N", "G"] and self._params["equal_sizes_sd"]:
                     # sd_r
                     norm_sd_rna = pyro.sample('norm_sd_rna', dist.Uniform(self._params['a'], self._params['b']))
                     segment_factor_rna = torch.ones(I)
@@ -78,12 +78,12 @@ class LatentCategorical(Model):
             ### ATAC segment dependent factors ###
             if 'data_atac' in self._data:
                 # size_a
-                if self._params["likelihood_atac"] == "NB":
+                if self._params["likelihood_atac"] == "NB" and self._params["equal_sizes_sd"]:
                     sizes_atac = pyro.sample("NB_size_atac", dist.Uniform(self._params['binom_prior_limits'][0],
                                                                 self._params['binom_prior_limits'][1]))
 
 
-                if self._params["likelihood_atac"] in ["N", "G"]:
+                if self._params["likelihood_atac"] in ["N", "G"] and self._params["equal_sizes_sd"]:
                     # sd_a
                     norm_sd_atac = pyro.sample('norm_sd_atac', dist.Uniform(self._params['a'], self._params['b']))
                     segment_factor_atac = torch.ones(I)
@@ -96,7 +96,22 @@ class LatentCategorical(Model):
 
             ### MODALITY INDEPENDENT HIDDEN CNV VALUES ###
             with pyro.plate('components', self._params['K']):
-                # C
+
+                if 'data_atac' in self._data and self._params["likelihood_atac"] == "NB" and not self._params["equal_sizes_sd"]:
+                    sizes_atac = pyro.sample("NB_size_atac", dist.Uniform(self._params['binom_prior_limits'][0],
+                                                                          self._params['binom_prior_limits'][1]))
+                if 'data_atac' in self._data and self._params["likelihood_atac"] in ["N", "G"] and not self._params["equal_sizes_sd"]:
+                    norm_sd_atac = pyro.sample('norm_sd_atac', dist.Uniform(self._params['a'], self._params['b']))
+
+
+                if 'data_rna' in self._data and self._params["likelihood_rna"] == "NB" and not self._params["equal_sizes_sd"]:
+                    sizes_rna = pyro.sample("NB_size_rna", dist.Uniform(self._params['binom_prior_limits'][0],
+                                                                          self._params['binom_prior_limits'][1]))
+                if 'data_rna' in self._data and self._params["likelihood_rna"] in ["N", "G"] and not self._params["equal_sizes_sd"]:
+                    norm_sd_rna = pyro.sample('norm_sd_rna', dist.Uniform(self._params['a'], self._params['b']))
+
+
+                #C
                 cc = pyro.sample("CNV_probabilities", dist.Dirichlet(self._params['probs']))
 
 

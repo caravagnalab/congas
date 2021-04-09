@@ -35,13 +35,13 @@ def poisson_likelihood_aux2(x,segment_fact, cna_probs, cat_vector, mod = "rna"):
 
 def poisson_likelihood(x, segment_fact_marg, weights, mod = "rna"):
     lk = poisson_likelihood_aux(x, segment_fact_marg, mod)
-    lk = lk + torch.log(weights).reshape([x._params['K'], 1, 1])
+    lk =  lk.sum(dim = 1) + torch.log(weights).reshape([x._params['K'], 1])
     summed_lk = log_sum_exp(lk)
     return summed_lk.sum()
 
 
 def poisson_likelihood2(x, segment_fact, cna_probs, cat_vector,weights, mod = "rna"):
     lk = poisson_likelihood_aux2(x, segment_fact, cna_probs, cat_vector, mod)
-    lk = lk + torch.log(weights).reshape([x._params['K'], 1, 1])
+    lk =  lk.sum(dim = 1) + torch.log(weights).reshape([x._params['K'], 1])
     summed_lk = log_sum_exp(lk)
     return summed_lk.sum()
