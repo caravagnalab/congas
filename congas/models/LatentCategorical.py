@@ -19,7 +19,8 @@ class LatentCategorical(Model):
               'theta_shape_rna': None, 'theta_rate_rna': None,'theta_shape_atac': None, 'theta_rate_atac': None,
               'batch_size': None, "init_probs" : 5, 'norm_init_sd_rna' : None, "norm_init_sd_atac" : None,
               'mixture': None, "nb_size_init_atac": None,"nb_size_init_rna": None, "binom_prior_limits" : [10,10000],
-              "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 1, "latent_type" : "D", "Temperature" : 1/100, "equal_sizes_sd" : True}
+              "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 1, "latent_type" : "D", "Temperature" : 1/100,
+              "equal_sizes_sd" : True, "purity" : 1}
 
     data_name = set(['data_rna', 'data_atac', 'pld', 'segments', 'norm_factor_rna', 'norm_factor_atac'])
 
@@ -127,6 +128,8 @@ class LatentCategorical(Model):
         lk_rna = 0
         entropy_per_segments_rna = 0
         penalty_per_segments_rna = 0
+        reconstruction_penalty_rna = 0
+
 
         if 'data_rna' in self._data:
 
@@ -145,12 +148,13 @@ class LatentCategorical(Model):
                     else:
                         lk_rna = lks.gaussian_likelihood2(self, segment_factor_rna,cc,cat_vector, weights_rna, norm_sd_rna, "rna")
 
+
+                # If I am using the gamble-soft trick, I do not need to marginalize over the dirichlet probs
+                # so I am just doing a matmult with the categorical draws
                 else:
+
                     segment_fact_cat = torch.matmul(segment_factor_rna.reshape([I, 1]),
                                                     cat_vector.reshape([1, self._params['hidden_dim']]))
-
-
-
 
                     segment_fact_marg_rna = segment_fact_cat * cc_argmax
 
@@ -167,7 +171,9 @@ class LatentCategorical(Model):
 
                     lk_rna_aux += torch.log(weights_rna).reshape([self._params['K'], 1, 1])
                     norm_lk_rna = log_sum_exp(lk_rna_aux)
+
                     #per_segment_ass_rna = torch.exp(lk_rna_aux - norm_lk_rna)
+
                     lk_rna = norm_lk_rna.sum()
 
                     #entropy_per_segments_rna = entropy_per_segment(per_segment_ass_rna)
@@ -179,11 +185,19 @@ class LatentCategorical(Model):
 
                     penalty_per_segments_rna = torch.linalg.norm((segment_fact_marg_rna) / max, ord=2, dim=0).sum() * N
 
+                    if self._params["latent_type"] == "G":
+
+                        cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
+                        reconstruction_penalty_rna = torch.sqrt(torch.pow((cc_avg * weights_rna.reshape([self._params["K"],1])).sum(dim=0) -
+                                                                          (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2)).sum() * N
+
+
+
 
         lk_atac = 0
         entropy_per_segments_atac = 0
-
         penalty_per_segments_atac = 0
+        reconstruction_penalty_atac = 0
 
         if 'data_atac' in self._data:
 
@@ -230,16 +244,30 @@ class LatentCategorical(Model):
                     max = torch.amax(segment_fact_marg_atac, dim = 0)
                     penalty_per_segments_atac = torch.linalg.norm((segment_fact_marg_atac / max) , ord = 2, dim = 0).sum() * M
 
+                    ## Penalty for reconstructing the ploidy value from bulkDNA using the single-cell clusters
+
+                    if self._params["latent_type"] == "G":
+                        cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
+                        reconstruction_penalty_atac = torch.sqrt(torch.pow(
+                            (cc_avg * weights_atac.reshape([self._params["K"], 1])).sum(dim=0) - (
+                                        self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),
+                            2)).sum() * M
 
         if self._params["latent_type"] == "M":
             pyro.factor("lk", self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac +
                         (self._params['lambda'] * N * entropy_mixture(weights_rna)) + ((1 - self._params['lambda']) * M * entropy_mixture(weights_atac)))
+
         else:
             #entropy_per_segments = self._params['lambda'] * entropy_per_segments_rna + (1-self._params['lambda']) * entropy_per_segments_atac
             CN_diff_penalty = self._params['lambda'] * penalty_per_segments_rna + (
                         1 - self._params['lambda']) * penalty_per_segments_atac
+
+            reconstruction_penalty = self._params['lambda'] * reconstruction_penalty_rna + (
+                    1 - self._params['lambda']) * reconstruction_penalty_atac
+
             lk_total = self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac
-            pyro.factor("lk", lk_total + CN_diff_penalty)
+
+            pyro.factor("lk", lk_total + CN_diff_penalty + reconstruction_penalty)
 
 
 
