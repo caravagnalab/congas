@@ -125,6 +125,8 @@ class LatentCategorical(Model):
                                          'baseline_beta': 0.95}))
 
 
+
+
         lk_rna = 0
         entropy_per_segments_rna = 0
         penalty_per_segments_rna = 0
@@ -185,11 +187,12 @@ class LatentCategorical(Model):
 
                     penalty_per_segments_rna = torch.linalg.norm((segment_fact_marg_rna) / max, ord=2, dim=0).sum() * N
 
+
                     if self._params["latent_type"] == "G":
 
                         cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
                         reconstruction_penalty_rna = torch.sqrt(torch.pow((cc_avg * weights_rna.reshape([self._params["K"],1])).sum(dim=0) -
-                                                                          (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2)).sum() * N
+                                                                          (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2).sum()) * N
 
 
 
@@ -244,14 +247,16 @@ class LatentCategorical(Model):
                     max = torch.amax(segment_fact_marg_atac, dim = 0)
                     penalty_per_segments_atac = torch.linalg.norm((segment_fact_marg_atac / max) , ord = 2, dim = 0).sum() * M
 
+
                     ## Penalty for reconstructing the ploidy value from bulkDNA using the single-cell clusters
 
                     if self._params["latent_type"] == "G":
                         cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
+                        print(cc_avg * weights_atac.reshape([self._params["K"], 1]).sum(dim=0))
                         reconstruction_penalty_atac = torch.sqrt(torch.pow(
                             (cc_avg * weights_atac.reshape([self._params["K"], 1])).sum(dim=0) - (
                                         self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),
-                            2)).sum() * M
+                            2).sum()) * M
 
         if self._params["latent_type"] == "M":
             pyro.factor("lk", self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac +
@@ -267,7 +272,11 @@ class LatentCategorical(Model):
 
             lk_total = self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac
 
-            pyro.factor("lk", lk_total + CN_diff_penalty + reconstruction_penalty)
+            print(lk_total)
+            print(CN_diff_penalty)
+            print(reconstruction_penalty)
+
+            pyro.factor("lk", lk_total + CN_diff_penalty - reconstruction_penalty)
 
 
 
