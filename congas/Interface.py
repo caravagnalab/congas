@@ -175,6 +175,18 @@ class Interface:
 
         else:
             params = self._get_params_no_autoguide()
+            if self._model._params['cnv_locs'] is None:
+                params["cnv_probs"] = params["param_cnv_probs"]
+            else:
+                params["cnv_probs"] = self._model._params["cnv_locs"]
+            if self._model._params['norm_factor'] is None:
+                params["norm_factor"] = params["param_norm_factor"]
+            else:
+                params["norm_factor"] = self._model._params['norm_factor']
+            if self._model._params['assignments'] is None:
+                params["mixture_weights"] = params["param_mixture_weights"]
+            else:
+                params["mixture_weights"] = self._model._params["mixture_weights"]
 
 
         print("Computing assignment probabilities", flush=True)
