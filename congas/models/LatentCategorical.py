@@ -252,7 +252,6 @@ class LatentCategorical(Model):
 
                     if self._params["latent_type"] == "G":
                         cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
-                        print(cc_avg * weights_atac.reshape([self._params["K"], 1]).sum(dim=0))
                         reconstruction_penalty_atac = torch.sqrt(torch.pow(
                             (cc_avg * weights_atac.reshape([self._params["K"], 1])).sum(dim=0) - (
                                         self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),
@@ -271,10 +270,6 @@ class LatentCategorical(Model):
                     1 - self._params['lambda']) * reconstruction_penalty_atac
 
             lk_total = self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac
-
-            print(lk_total)
-            print(CN_diff_penalty)
-            print(reconstruction_penalty)
 
             pyro.factor("lk", lk_total + CN_diff_penalty - reconstruction_penalty)
 

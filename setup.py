@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name='congas',
-      version='0.0.75',
+      version='0.0.76',
       description='Copy Number genotyping from single cell RNA sequencing',
       url='https://github.com/Militeee/congas',
       author='Salvatore Milite',
