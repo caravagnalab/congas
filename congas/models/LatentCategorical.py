@@ -19,7 +19,7 @@ class LatentCategorical(Model):
               'theta_shape_rna': None, 'theta_rate_rna': None,'theta_shape_atac': None, 'theta_rate_atac': None,
               'batch_size': None, "init_probs" : 5, 'norm_init_sd_rna' : None, "norm_init_sd_atac" : None,
               'mixture': None, "nb_size_init_atac": None,"nb_size_init_rna": None, "binom_prior_limits" : [10,10000],
-              "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 1, "latent_type" : "D", "Temperature" : 1/100,
+              "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 0, "latent_type" : "D", "Temperature" : 1/100,
               "equal_sizes_sd" : True, "purity" : 1}
 
     data_name = set(['data_rna', 'data_atac', 'pld', 'segments', 'norm_factor_rna', 'norm_factor_atac'])
@@ -117,19 +117,14 @@ class LatentCategorical(Model):
 
 
 
-                if self._params["latent_type"] == "G":
-                    gumble = tdist.Gumbel(0, 1).sample(cc.shape)
-                    cc_argmax = ((torch.log(cc) + gumble) / Temperature).softmax(-1)
-                else:
-                    cc_argmax = pyro.sample("cc_argmax", dist.OneHotCategorical(cc),infer=dict(baseline={'use_decaying_avg_baseline': True,
-                                         'baseline_beta': 0.95}))
+                gumble = tdist.Gumbel(0, 1).sample(cc.shape)
+                cc_argmax = ((torch.log(cc) + gumble) / Temperature).softmax(-1)
+
 
 
 
 
         lk_rna = 0
-        entropy_per_segments_rna = 0
-        penalty_per_segments_rna = 0
         reconstruction_penalty_rna = 0
 
 
@@ -138,68 +133,35 @@ class LatentCategorical(Model):
             with pyro.plate('data_rna', N, batch1):
                 # p(x|z_i) = Poisson(marg(cc * theta * segment_factor))
 
+                segment_fact_cat = torch.matmul(segment_factor_rna.reshape([I, 1]),
+                                                cat_vector.reshape([1, self._params['hidden_dim']]))
 
-                if self._params["latent_type"] == "M":
+                segment_fact_marg_rna = segment_fact_cat * cc_argmax
 
-                    if self._params["likelihood_rna"] == "NB":
-                        lk_rna = lks.NB_likelihood2(self, segment_factor_rna, cc, cat_vector, weights_rna, sizes_rna, "rna")
+                segment_fact_marg_rna = torch.sum(segment_fact_marg_rna, dim=-1)
 
-                    elif self._params["likelihood_rna"] == "P":
-                        lk_rna = lks.poisson_likelihood2(self,segment_factor_rna,cc,cat_vector, weights_rna, "rna")
+                if self._params["likelihood_rna"] == "NB":
+                    lk_rna_aux = lks.NB_likelihood_aux(self, segment_fact_marg_rna, sizes_rna, "rna").sum(dim = 1)
 
-                    else:
-                        lk_rna = lks.gaussian_likelihood2(self, segment_factor_rna,cc,cat_vector, weights_rna, norm_sd_rna, "rna")
+                elif self._params["likelihood_rna"] == "P":
+                    lk_rna_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_rna, "rna").sum(dim = 1)
 
-
-                # If I am using the gamble-soft trick, I do not need to marginalize over the dirichlet probs
-                # so I am just doing a matmult with the categorical draws
                 else:
+                    lk_rna_aux = lks.gaussian_likelihood_aux(self, segment_fact_marg_rna, norm_sd_rna, "rna")
 
-                    segment_fact_cat = torch.matmul(segment_factor_rna.reshape([I, 1]),
-                                                    cat_vector.reshape([1, self._params['hidden_dim']]))
+                lk_rna_aux += torch.log(weights_rna).reshape([self._params['K'], 1])
+                norm_lk_rna = log_sum_exp(lk_rna_aux)
 
-                    segment_fact_marg_rna = segment_fact_cat * cc_argmax
-
-                    segment_fact_marg_rna = torch.sum(segment_fact_marg_rna, dim=-1)
-
-                    if self._params["likelihood_rna"] == "NB":
-                        lk_rna_aux = lks.NB_likelihood_aux(self, segment_fact_marg_rna, sizes_rna, "rna")
-
-                    elif self._params["likelihood_rna"] == "P":
-                        lk_rna_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_rna, "rna")
-
-                    else:
-                        lk_rna_aux = lks.gaussian_likelihood_aux(self, segment_fact_marg_rna, norm_sd_rna, "rna")
-
-                    lk_rna_aux += torch.log(weights_rna).reshape([self._params['K'], 1, 1])
-                    norm_lk_rna = log_sum_exp(lk_rna_aux)
-
-                    #per_segment_ass_rna = torch.exp(lk_rna_aux - norm_lk_rna)
-
-                    lk_rna = norm_lk_rna.sum()
-
-                    #entropy_per_segments_rna = entropy_per_segment(per_segment_ass_rna)
-
-                    ### penalty per segment ###
-
-                    max = torch.amax(segment_fact_marg_rna, dim = 0)
+                lk_rna = norm_lk_rna.sum()
 
 
-                    penalty_per_segments_rna = torch.linalg.norm((segment_fact_marg_rna) / max, ord=2, dim=0).sum() * N
 
-
-                    if self._params["latent_type"] == "G":
-
-                        cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
-                        reconstruction_penalty_rna = torch.sqrt(torch.pow((cc_avg * weights_rna.reshape([self._params["K"],1])).sum(dim=0) -
-                                                                          (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2).sum()) * N
-
-
+                cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
+                reconstruction_penalty_rna = torch.sqrt(torch.pow((cc_avg * weights_rna.reshape([self._params["K"],1])).sum(dim=0) -
+                                                                  (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2).sum()) * N
 
 
         lk_atac = 0
-        entropy_per_segments_atac = 0
-        penalty_per_segments_atac = 0
         reconstruction_penalty_atac = 0
 
         if 'data_atac' in self._data:
@@ -207,71 +169,43 @@ class LatentCategorical(Model):
             with pyro.plate('data_atac', M, batch2):
                 # p(x|z_i) = Poisson(marg(cc * theta * segment_factor))
 
-                if self._params["latent_type"] == "M":
+                segment_fact_cat_atac = torch.matmul(segment_factor_atac.reshape([I, 1]),
+                                                cat_vector.reshape([1, self._params['hidden_dim']]))
 
-                    if self._params["likelihood_atac"] == "NB":
-                        lk_atac = lks.NB_likelihood2(self, segment_factor_atac,cc, cat_vector, weights_atac, sizes_atac, "atac")
-                    elif self._params["likelihood_atac"] == "P":
-                        lk_atac = lks.poisson_likelihood2(self, segment_factor_atac,cc, cat_vector, weights_atac, "atac")
-                    else:
-                        lk_atac = lks.gaussian_likelihood2(self, segment_factor_atac,cc,cat_vector, weights_atac, norm_sd_atac, "atac")
+
+                segment_fact_marg_atac = segment_fact_cat_atac * cc_argmax
+
+                segment_fact_marg_atac = torch.sum(segment_fact_marg_atac, dim=-1)
+
+
+
+                if self._params["likelihood_atac"] == "NB":
+                    lk_atac_aux = lks.NB_likelihood_aux(self, segment_fact_marg_atac, sizes_atac, "atac").sum(dim = 1)
+                elif self._params["likelihood_atac"] == "P":
+                    lk_atac_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_atac, "atac").sum(dim = 1)
 
                 else:
+                    lk_atac_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_atac, "atac").sum(dim = 1)
 
-                    segment_fact_cat_atac = torch.matmul(segment_factor_atac.reshape([I, 1]),
-                                                    cat_vector.reshape([1, self._params['hidden_dim']]))
-
-
-                    segment_fact_marg_atac = segment_fact_cat_atac * cc_argmax
-
-                    segment_fact_marg_atac = torch.sum(segment_fact_marg_atac, dim=-1)
+                lk_atac_aux += torch.log(weights_atac).reshape([ self._params['K'], 1])
+                norm_lk_atac = log_sum_exp(lk_atac_aux)
+                lk_atac = norm_lk_atac.sum()
 
 
+                if self._params["latent_type"] == "G":
+                    cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
+                    reconstruction_penalty_atac = torch.sqrt(torch.pow(
+                        (cc_avg * weights_atac.reshape([self._params["K"], 1])).sum(dim=0) - (
+                                    self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),
+                        2).sum()) * M
 
-                    if self._params["likelihood_atac"] == "NB":
-                        lk_atac_aux = lks.NB_likelihood_aux(self, segment_fact_marg_atac, sizes_atac, "atac")
-                    elif self._params["likelihood_atac"] == "P":
-                        lk_atac_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_atac, "atac")
+            #reconstruction_penalty = self._params['lambda'] * reconstruction_penalty_rna + (
+            #        1 - self._params['lambda']) * reconstruction_penalty_atac
 
-                    else:
-                        lk_atac_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_atac, "atac")
-
-                    lk_atac_aux += torch.log(weights_atac).reshape([ self._params['K'], 1, 1])
-                    norm_lk_atac = log_sum_exp(lk_atac_aux)
-                    #per_segment_ass_atac = torch.exp(lk_atac_aux - norm_lk_atac)
-                    lk_atac = norm_lk_atac.sum()
-
-                    #entropy_per_segments_atac = entropy_per_segment(per_segment_ass_atac)
-
-                    ### penalty per segment ###
-                    max = torch.amax(segment_fact_marg_atac, dim = 0)
-                    penalty_per_segments_atac = torch.linalg.norm((segment_fact_marg_atac / max) , ord = 2, dim = 0).sum() * M
-
-
-                    ## Penalty for reconstructing the ploidy value from bulkDNA using the single-cell clusters
-
-                    if self._params["latent_type"] == "G":
-                        cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
-                        reconstruction_penalty_atac = torch.sqrt(torch.pow(
-                            (cc_avg * weights_atac.reshape([self._params["K"], 1])).sum(dim=0) - (
-                                        self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),
-                            2).sum()) * M
-
-        if self._params["latent_type"] == "M":
-            pyro.factor("lk", self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac +
-                        (self._params['lambda'] * N * entropy_mixture(weights_rna)) + ((1 - self._params['lambda']) * M * entropy_mixture(weights_atac)))
-
-        else:
-            #entropy_per_segments = self._params['lambda'] * entropy_per_segments_rna + (1-self._params['lambda']) * entropy_per_segments_atac
-            CN_diff_penalty = self._params['lambda'] * penalty_per_segments_rna + (
-                        1 - self._params['lambda']) * penalty_per_segments_atac
-
-            reconstruction_penalty = self._params['lambda'] * reconstruction_penalty_rna + (
-                    1 - self._params['lambda']) * reconstruction_penalty_atac
-
+            reconstruction_penalty = 0
             lk_total = self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac
 
-            pyro.factor("lk", lk_total + CN_diff_penalty - reconstruction_penalty)
+            pyro.factor("lk", lk_total  - reconstruction_penalty)
 
 
 
@@ -378,18 +312,12 @@ class LatentCategorical(Model):
 
         cc_ones = torch.argmax(inf_params["CNV_probabilities"], dim=-1)
 
-
-
-
         cc_argmax = torch.zeros_like(inf_params["CNV_probabilities"])
 
 
         for i in range(cc_argmax.shape[0]):
             for j in range(cc_argmax.shape[1]):
                 cc_argmax[i,j,cc_ones[i,j]] = 1
-
-
-
 
 
         segment_fact_marg = segment_fact * cc_argmax
@@ -401,36 +329,19 @@ class LatentCategorical(Model):
 
 
         if self._params["likelihood_{}".format(mod)] == "NB":
-            if self._params["latent_type"] == "M":
-                lk = lks.NB_likelihood_aux2(self, inf_params["segment_factor_{}".format(mod)],
-                                            inf_params["CNV_probabilities"],
-                                            cat_vector,
-                                            inf_params["NB_size_{}".format(mod)], mod)
-            else:
-                lk = lks.NB_likelihood_aux(self, segment_fact_marg, inf_params["NB_size_{}".format(mod)], mod)
 
-
+             lk = lks.NB_likelihood_aux(self, segment_fact_marg, inf_params["NB_size_{}".format(mod)], mod)
 
         elif self._params["likelihood_{}".format(mod)] == "P":
-            if self._params["latent_type"] == "M":
-                lk = lks.poisson_likelihood_aux2(self, inf_params["segment_factor_{}".format(mod)],
-                                            inf_params["CNV_probabilities"],
-                                            cat_vector, mod)
-            else:
-                lk = lks.poisson_likelihood_aux(self, segment_fact_marg, mod)
+
+            lk = lks.poisson_likelihood_aux(self, segment_fact_marg, mod)
 
         else:
-            if self._params["latent_type"] == "M":
-                lk = lks.gaussian_likelihood_aux2(self, inf_params["segment_factor_{}".format(mod)],
-                                                 inf_params["CNV_probabilities"],
-                                                 cat_vector,
-                                                inf_params["norm_sd_{}".format(mod)],
-                                                  mod)
-            else:
-                lk = lks.gaussian_likelihood_aux(self, segment_fact_marg, inf_params["norm_sd_{}".format(mod)], mod)
+
+            lk = lks.gaussian_likelihood_aux(self, segment_fact_marg, inf_params["norm_sd_{}".format(mod)], mod)
 
         if(sum):
-            lk = lk + torch.log(inf_params["mixture_weights_{}".format(mod)]).reshape([len(inf_params["mixture_weights_{}".format(mod)]), 1, 1])
+            lk = lk.sum(dim=1) + torch.log(inf_params["mixture_weights_{}".format(mod)]).reshape([len(inf_params["mixture_weights_{}".format(mod)]), 1])
             lk = log_sum_exp(lk).sum()
 
         return lk
