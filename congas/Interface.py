@@ -12,6 +12,8 @@ from tqdm import trange
 
 from congas.building_blocks import *
 from congas.model_selection import *
+from congas.utils import retrieve_params
+from congas.stopping_criteria import all_stopping_criteria
 
 
 class Interface:
