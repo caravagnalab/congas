@@ -20,7 +20,7 @@ class LatentCategorical(Model):
               'batch_size': None, "init_probs" : 5, 'norm_init_sd_rna' : None, "norm_init_sd_atac" : None,
               'mixture': None, "nb_size_init_atac": None,"nb_size_init_rna": None, "binom_prior_limits" : [10,10000],
               "likelihood_rna" : "NB", "likelihood_atac" : "NB", 'lambda' : 0, "latent_type" : "D", "Temperature" : 1/100,
-              "equal_sizes_sd" : True, "purity" : 1}
+              "equal_sizes_sd" : True, "purity" : None}
 
     data_name = set(['data_rna', 'data_atac', 'pld', 'segments', 'norm_factor_rna', 'norm_factor_atac'])
 
@@ -115,6 +115,7 @@ class LatentCategorical(Model):
                 #C
                 cc = pyro.sample("CNV_probabilities", dist.Dirichlet(self._params['probs']))
 
+                cc[cc<1e-10] = 1e-10
 
 
                 gumble = tdist.Gumbel(0, 1).sample(cc.shape)
@@ -155,10 +156,10 @@ class LatentCategorical(Model):
                 lk_rna = norm_lk_rna.sum()
 
 
-
-                cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
-                reconstruction_penalty_rna = torch.sqrt(torch.pow((cc_avg * weights_rna.reshape([self._params["K"],1])).sum(dim=0) -
-                                                                  (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2).sum()) * N
+                if self._params["purity"]:
+                    cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
+                    reconstruction_penalty_rna = torch.sqrt(torch.pow((cc_avg * weights_rna.reshape([self._params["K"],1])).sum(dim=0) -
+                                                                    (self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),2).sum()) * N
 
 
         lk_atac = 0
@@ -192,20 +193,20 @@ class LatentCategorical(Model):
                 lk_atac = norm_lk_atac.sum()
 
 
-                if self._params["latent_type"] == "G":
+                if (self._params["latent_type"] == "G") and (self._params["purity"]):
                     cc_avg = (cc_argmax * cat_vector.reshape([1, self._params['hidden_dim']])).sum(dim=-1)
                     reconstruction_penalty_atac = torch.sqrt(torch.pow(
                         (cc_avg * weights_atac.reshape([self._params["K"], 1])).sum(dim=0) - (
                                     self._data['pld'] * self._params["purity"] + 2 * (1 - self._params["purity"])),
                         2).sum()) * M
 
-            #reconstruction_penalty = self._params['lambda'] * reconstruction_penalty_rna + (
-            #        1 - self._params['lambda']) * reconstruction_penalty_atac
+            reconstruction_penalty = self._params['lambda'] * reconstruction_penalty_rna + (
+                   1 - self._params['lambda']) * reconstruction_penalty_atac
 
-            reconstruction_penalty = 0
+            #reconstruction_penalty = 0
             lk_total = self._params['lambda'] * lk_rna + (1-self._params['lambda']) * lk_atac
 
-            pyro.factor("lk", lk_total  - reconstruction_penalty)
+            pyro.factor("lk", lk_total - reconstruction_penalty)
 
 
 

@@ -126,16 +126,24 @@ class Interface:
 
         loss = [None] * steps
 
-        print('Running {} on {} cells with {} segments for {} steps and {} modalities'.format(
-           self._model_string, num_observations, num_segments,steps, modali), flush=True)
+        loss[0] = svi.step(i = 1) / (num_observations * num_segments)
+        elb = loss[0]
+        new_w = retrieve_params()
 
         t = trange(steps, desc='Bar desc', leave=True)
 
         for step in t:
-            loss[step] = svi.step(i = step + 1) / (num_observations * num_segments)
-            elb = loss[step]
             t.set_description('ELBO: {:.9f}  '.format(elb))
             t.refresh()
+
+            loss[step] = svi.step(i = step + 1) / (num_observations * num_segments)
+            elb = loss[step]
+
+            old_w, new_w = new_w, retrieve_params()
+
+            if all_stopping_criteria(old_w, new_w, 0.01, step):
+                print('Reached convergence', flush = True)
+                break
 
         print("", flush = True)
         self._model_trained = model

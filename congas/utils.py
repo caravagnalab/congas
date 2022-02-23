@@ -12,6 +12,7 @@ import numpy as np
 from pyro.optim import ClippedAdam
 from pyro.infer import SVI, TraceGraph_ELBO
 import torch
+from pandas.core.common import flatten
 
 def plot_loss(loss, save = False, output = "run1"):
     plt.plot(loss)
@@ -27,7 +28,7 @@ def dict_to_tensor(dict):
         if not torch.is_tensor(v):
             dict[k] = torch.tensor(v)
 
-def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceGraph_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {},seed = 3):
+def run_analysis(data_dict, model , optim = ClippedAdam, elbo = TraceGraph_ELBO, inf_type = SVI,steps = 500, lr = 0.01, param_dict = {}, e = 0.001, seed = 3):
 
     """ Run an entire analysis with the minimum amount of parameters
 
@@ -47,6 +48,7 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceGraph_ELBO, 
         param_dict: parameters for the model, look at the model documentation if you want to change them
         MAP: perform MAP over the last layer of random variable in the model or learn the parameters of the distribution
         seed: seed for pyro.set_rng_seed
+        e: minimum change accepted for each parameter between two consecutive inference steps. If the change is lower than this threshold the inference is stopped.
         step_post: steps if learning also posterior probabilities
 
     Returns:
@@ -64,7 +66,7 @@ def run_analysis(data_dict,model , optim = ClippedAdam, elbo = TraceGraph_ELBO, 
     interface.initialize_model(data_dict)
     interface.set_model_params(param_dict)
 
-    loss,N = interface.run(steps= steps, seed=seed, param_optimizer={'lr' : lr})
+    loss,N = interface.run(steps = steps, seed=seed, param_optimizer={'lr' : lr}, e = e)
     parameters = interface.learned_parameters()
 
 
@@ -133,7 +135,15 @@ def entropy_mixture(x):
     entr = torch.sum(x + torch.log(x + 1e-10), dim = 0)
     return entr.sum()
 
-
 def entropy_per_segment(x):
     entr = torch.sum(x + torch.log(x + 1e-10), dim=0)
     return entr.sum()
+
+def collect_params(pars):
+    pars = list(flatten([value.detach().tolist() for key, value in pars.items()]))
+    return(np.array(pars))
+
+def retrieve_params():
+    param_names = pyro.get_param_store()
+    res = {nms: pyro.param(nms) for nms in param_names}
+    return res
