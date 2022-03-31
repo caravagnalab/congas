@@ -18,7 +18,7 @@ Currently providing:
 
 To install:
 
-`$ pip install congas`
+`$ pip install congas-old`
 
 To run a simple analysis on the example data
 
