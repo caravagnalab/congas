@@ -72,13 +72,12 @@ class Interface:
     def set_model_params(self, param_dict):
         self._model.set_params(param_dict)
 
-    def run(self, steps,param_optimizer = {'lr' : 0.05}, param_loss = None, seed = 3):
+    def run(self, steps,param_optimizer = {'lr' : 0.05}, e = 0.01, param_loss = None, seed = 3):
 
         """ This function runs the inference of non-categorical parameters
 
           This function performs a complete inference cycle for the given tuple(model, optimizer, loss, inference modality).
-          For more info about the parameters for the loss and the optimizer look
-          at `Optimization <http://docs.pyro.ai/en/stable/optimization.html>`_.
+          For more info about the parameters for the loss and the optimizer look at `Optimization <http://docs.pyro.ai/en/stable/optimization.html>`_.
           and `Loss <http://docs.pyro.ai/en/stable/inference_algos.html>`_.
 
           Not all the the combinations Optimize-parameters and Loss-parameters have been tested, so something may
@@ -134,6 +133,7 @@ class Interface:
 
         t = trange(steps, desc='Bar desc', leave=True)
 
+        conv = 0
         for step in t:
             t.set_description('ELBO: {:.9f}  '.format(elb))
             t.refresh()
@@ -143,9 +143,17 @@ class Interface:
 
             old_w, new_w = new_w, retrieve_params()
 
-            if all_stopping_criteria(old_w, new_w, 0.01, step):
-                print('Reached convergence', flush = True)
-                break
+            # print('Value in param store:')
+            # print(pyro.param('AutoDelta.NB_size_atac'))
+
+            if all_stopping_criteria(old_w, new_w, e, step):
+                if (conv == 5):
+                    print('Reached convergence', flush = True)
+                    break
+                else:
+                    conv = conv + 1
+            else:
+                conv = 0
 
         print("", flush = True)
         self._model_trained = model
