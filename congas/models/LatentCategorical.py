@@ -148,7 +148,7 @@ class LatentCategorical(Model):
                     lk_rna_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_rna, "rna").sum(dim = 1)
 
                 else:
-                    lk_rna_aux = lks.gaussian_likelihood_aux(self, segment_fact_marg_rna, norm_sd_rna, "rna")
+                    lk_rna_aux = lks.gaussian_likelihood_aux(self, segment_fact_marg_rna, norm_sd_rna, "rna").sum(dim = 1)
 
                 lk_rna_aux += torch.log(weights_rna).reshape([self._params['K'], 1])
                 norm_lk_rna = log_sum_exp(lk_rna_aux)
