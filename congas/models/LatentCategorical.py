@@ -186,7 +186,7 @@ class LatentCategorical(Model):
                     lk_atac_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_atac, "atac").sum(dim = 1)
 
                 else:
-                    lk_atac_aux = lks.poisson_likelihood_aux(self, segment_fact_marg_atac, "atac").sum(dim = 1)
+                    lk_atac_aux = lks.gaussian_likelihood_aux(self, segment_fact_marg_atac, norm_sd_atac, "atac").sum(dim = 1)
 
                 lk_atac_aux += torch.log(weights_atac).reshape([ self._params['K'], 1])
                 norm_lk_atac = log_sum_exp(lk_atac_aux)
