@@ -122,9 +122,6 @@ class LatentCategorical(Model):
                 cc_argmax = ((torch.log(cc) + gumble) / Temperature).softmax(-1)
 
 
-
-
-
         lk_rna = 0
         reconstruction_penalty_rna = 0
 
