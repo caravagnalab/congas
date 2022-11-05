@@ -40,6 +40,7 @@ class LatentCategorical(Model):
             #rho_r
             weights_rna = pyro.sample('mixture_weights_rna',
                                   dist.Dirichlet((1. / self._params['K']) * torch.ones(self._params['K'])))
+            weights_rna[weights_rna<1e-20] = 1e-20
         else:
             N = 0
 
@@ -49,6 +50,7 @@ class LatentCategorical(Model):
             # rho_a
             weights_atac = pyro.sample('mixture_weights_atac',
                                   dist.Dirichlet((1. / self._params['K']) * torch.ones(self._params['K'])))
+            weights_atac[weights_atac<1e-20] = 1e-20
         else:
             M = 0
 
