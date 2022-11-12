@@ -7,5 +7,5 @@ def all_stopping_criteria(old, new, e, step):
     diff_mix = np.abs(old - new) / np.abs(old)
     
     if np.all(diff_mix < e):
-        return True
-    return False
+        return [True, diff_mix]
+    return [False, diff_mix]

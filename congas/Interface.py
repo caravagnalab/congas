@@ -19,7 +19,7 @@ from congas.stopping_criteria import all_stopping_criteria
 class Interface:
     """ The interface class for all the congas models.
 
-    Basically it takes a model, am optimizer and a loss function and provides a functions to run the inference and get the parameters
+    Basically it takes a model, an optimizer and a loss function and provides a functions to run the inference and get the parameters
     back masking the differences between models.
 
 
@@ -34,6 +34,9 @@ class Interface:
         self._guide_trained = None
         self._loss_trained = None
         self._model_string = None
+        # Dictonary of dictionaries. The first key indicates the training step and each subdict contains the parameters status
+        # at that step
+        self.params_history = {}
 
 
     def __repr__(self):
@@ -72,7 +75,7 @@ class Interface:
     def set_model_params(self, param_dict):
         self._model.set_params(param_dict)
 
-    def run(self, steps,param_optimizer = {'lr' : 0.05}, e = 0.01, param_loss = None, seed = 3):
+    def run(self, steps,param_optimizer = {'lr' : 0.05}, e = 0.01, patience = 5, param_loss = None, seed = 3):
 
         """ This function runs the inference of non-categorical parameters
 
@@ -145,16 +148,18 @@ class Interface:
 
             # print('Value in param store:')
             # print(pyro.param('AutoDelta.NB_size_atac'))
+            stop, diff_params = all_stopping_criteria(old_w, new_w, e, step)
+            # print(stop)
+            self.params_history.update({step : diff_params})
 
-            if all_stopping_criteria(old_w, new_w, e, step):
-                if (conv == 5):
+            if stop:
+                if (conv == patience):
                     print('Reached convergence', flush = True)
                     break
                 else:
                     conv = conv + 1
             else:
                 conv = 0
-
         print("", flush = True)
         self._model_trained = model
         self._guide_trained = guide
