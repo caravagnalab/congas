@@ -34,8 +34,7 @@ class Interface:
         self._guide_trained = None
         self._loss_trained = None
         self._model_string = None
-        # Dictonary of dictionaries. The first key indicates the training step and each subdict contains the parameters status
-        # at that step
+        # Dictonary of dictionaries. The first key indicates the training step and each entry is the % difference for every parameter
         self.params_history = {}
 
 
@@ -253,6 +252,7 @@ class Interface:
         ret = {"NLL" : -lk.detach().numpy(), "AIC" : AIC.detach().numpy(),
                "BIC" : BIC.detach().numpy(), "ICL" : ICL.detach().numpy(),
                "entropy" : entropy.detach().numpy(),
+               "NLL_rna" : -lk_rna.detach().numpy(), "NLL_atac" : -lk_atac.detach().numpy(),
                "n_params" : n_params, "n_observations" : N}
 
         return ret
