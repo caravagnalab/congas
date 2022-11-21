@@ -33,7 +33,7 @@ class LatentCategorical(Model):
 
         Temperature = self._params['Temperature'] / np.log2(i + 0.1)
 
-        if self._parameters['equal_mixture_weights']:
+        if self._params['equal_mixture_weights']:
             weights = pyro.sample('mixture_weights', dist.Dirichlet((1. / self._params['K']) * torch.ones(self._params['K'])))
             weights[weights<1e-20] = 1e-20
 
@@ -43,7 +43,7 @@ class LatentCategorical(Model):
             I, N = self._data['data_rna'].shape
             batch1 = N if self._params['batch_size'] else self._params['batch_size']
             #rho_r
-            if not self._parameters['equal_mixture_weights']:
+            if not self._params['equal_mixture_weights']:
                 weights_rna = pyro.sample('mixture_weights_rna',
                                     dist.Dirichlet((1. / self._params['K']) * torch.ones(self._params['K'])))
                 weights_rna[weights_rna<1e-20] = 1e-20
@@ -56,7 +56,7 @@ class LatentCategorical(Model):
             I, M = self._data['data_atac'].shape
             batch2 = M if self._params['batch_size'] else self._params['batch_size']
             # rho_a
-            if not self._parameters['equal_mixture_weights']:
+            if not self._params['equal_mixture_weights']:
                 weights_atac = pyro.sample('mixture_weights_atac',
                                     dist.Dirichlet((1. / self._params['K']) * torch.ones(self._params['K'])))
                 weights_atac[weights_atac<1e-20] = 1e-20
@@ -353,7 +353,7 @@ class LatentCategorical(Model):
             lk = lks.gaussian_likelihood_aux(self, segment_fact_marg, inf_params["norm_sd_{}".format(mod)], mod)
 
         if(sum):
-            if self._parameters['equal_mixture_weights']:
+            if self._params['equal_mixture_weights']:
                 lk = lk.sum(dim=1) + torch.log(inf_params["mixture_weights".format(mod)]).reshape([len(inf_params["mixture_weights".format(mod)]), 1])
             else:
                 lk = lk.sum(dim=1) + torch.log(inf_params["mixture_weights_{}".format(mod)]).reshape([len(inf_params["mixture_weights_{}".format(mod)]), 1])
@@ -372,7 +372,7 @@ class LatentCategorical(Model):
             lk = self.likelihood(inf_params, "rna")
             # p(z_i| D, X ) = lk(z_i) * p(z_i | X) / sum_z_i(lk(z_i) * p(z_i | X))
             # log(p(z_i| D, X )) = log(lk(z_i)) + log(p(z_i | X)) - log_sum_exp(log(lk(z_i)) + log(p(z_i | X)))
-            if self._parameters['equal_mixture_weights']:
+            if self._params['equal_mixture_weights']:
                 lk = torch.sum(lk, dim=1) + torch.log(inf_params["mixture_weights"]).reshape([self._params['K'], 1])
             else:
                 lk = torch.sum(lk, dim=1) + torch.log(inf_params["mixture_weights_rna"]).reshape([self._params['K'], 1])
@@ -390,7 +390,7 @@ class LatentCategorical(Model):
         if 'data_atac' in self._data:
             I, M = self._data['data_atac'].shape
             lk = self.likelihood(inf_params, "atac")
-            if self._parameters['equal_mixture_weights']:
+            if self._params['equal_mixture_weights']:
                 lk = torch.sum(lk, dim=1) + torch.log(inf_params["mixture_weights"]).reshape([self._params['K'], 1])
             else:
                 lk = torch.sum(lk, dim=1) + torch.log(inf_params["mixture_weights_atac"]).reshape([self._params['K'], 1])
