@@ -229,13 +229,13 @@ class Interface:
 
         N = 0
         entropy_rna = 0
-        lk_rna = 0
+        lk_rna = torch.tensor(0)
         if "data_rna" in self._model._data :
             N += self._model._data['data_rna'].shape[1]
             lk_rna = self._model.likelihood(params, "rna",sum = True)
             entropy_rna = calc_entropy(ca["assignment_probs_rna"])
 
-        lk_atac = 0
+        lk_atac = torch.tensor(0)
         entropy_atac = 0
         if "data_atac" in self._model._data:
             N +=  self._model._data['data_atac'].shape[1]
