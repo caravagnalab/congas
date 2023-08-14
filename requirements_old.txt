@@ -75,7 +75,7 @@ sphinxcontrib-serializinghtml==1.1.4
 terminado==0.8.3
 testpath==0.4.4
 torch==1.13.1
-tornado==6.0.4
+tornado==6.3.3
 tqdm==4.46.0
 traitlets==4.3.3
 urllib3==1.26.5
